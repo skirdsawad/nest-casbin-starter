@@ -41,7 +41,7 @@ export class PoliciesGuard implements CanActivate {
       throw new ForbiddenException('Department ID not found in request');
     }
 
-    const departmentCode = this.departmentsService.getCodeById(departmentId);
+    const departmentCode = await this.departmentsService.getCodeById(departmentI);
 
     const hasPermission = await this.casbinService.enforce(userId, departmentCode, object, action);
 
@@ -52,13 +52,13 @@ export class PoliciesGuard implements CanActivate {
     return true;
   }
 
-  private async getDepartmentId(request: Request): Promise<number | null> {
+  private async getDepartmentId(request: Request): Promise<string | null> {
     if (request.params.id) {
-      const requestEntity = this.requestsRepository.findById(parseInt(request.params.id, 10));
+      const requestEntity = await this.requestsRepository.findById(request.params.id);
       return requestEntity ? requestEntity.departmentId : null;
     }
     if (request.query.departmentId) {
-      return parseInt(request.query.departmentId as string, 10);
+      return request.query.departmentId as string;
     }
     if (request.body.departmentId) {
       return request.body.departmentId;

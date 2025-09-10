@@ -1,23 +1,45 @@
 
 import { Injectable } from '@nestjs/common';
-import { Department } from '../common/models/domain';
-
-const DEPARTMENTS: Department[] = [
-  { id: 15, code: 'D15', name: 'Department 15' },
-  { id: 19, code: 'D19', name: 'Department 19' },
-];
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Department } from '../common/entities/department.entity';
 
 @Injectable()
 export class DepartmentsRepository {
-  findAll(): Department[] {
-    return DEPARTMENTS;
+  constructor(
+    @InjectRepository(Department)
+    private readonly departmentsRepository: Repository<Department>,
+  ) {}
+
+  findAll(): Promise<Department[]> {
+    return this.departmentsRepository.find();
   }
 
-  findById(id: number): Department | undefined {
-    return DEPARTMENTS.find((d) => d.id === id);
+  findById(id: string): Promise<Department | undefined> {
+    return this.departmentsRepository.findOneBy({ id });
   }
 
-  findByCode(code: string): Department | undefined {
-    return DEPARTMENTS.find((d) => d.code === code);
+  findByCode(code: string): Promise<Department | undefined> {
+    return this.departmentsRepository.findOneBy({ code });
+  }
+
+  async seed(): Promise<Department[]> {
+    const departmentsData = [
+      { code: 'HR', name: 'Human Resources' },
+      { code: 'MKT', name: 'Marketing' },
+      { code: 'IT', name: 'IT' },
+      { code: 'SP', name: 'Strategic&Planning' },
+    ];
+
+    const seededDepts: Department[] = [];
+
+    for (const deptData of departmentsData) {
+      let dept = await this.findByCode(deptData.code);
+      if (!dept) {
+        dept = await this.departmentsRepository.save(deptData);
+      }
+      seededDepts.push(dept);
+    }
+    return seededDepts;
   }
 }

@@ -5,6 +5,7 @@ import { RulesService } from '../rules/rules.service';
 import { DepartmentsService } from '../departments/departments.service';
 import { CasbinService } from '../common/casbin/casbin.service';
 import { UserContext } from '../common/auth/user-context.service';
+import { RequestEntity } from '../common/entities/request.entity';
 
 @Injectable()
 export class ApprovalsService {
@@ -28,9 +29,9 @@ export class ApprovalsService {
     return 'DEPT_HEAD';
   }
 
-  async approve(requestId: number, decision: 'approve' | 'reject') {
+  async approve(requestId: number, decision: 'approve' | 'reject'): Promise<RequestEntity> {
     const userId = this.userContext.userId;
-    const req = this.requestsRepository.findById(requestId);
+    const req = await this.requestsRepository.findById(requestId);
     if (!req) throw new NotFoundException('Request not found');
 
     const deptCode = this.depts.getCodeById(req.departmentId);
@@ -39,12 +40,11 @@ export class ApprovalsService {
     if (!ok) throw new ForbiddenException('Not eligible to approve this stage');
 
     try {
-      this.approvalsRepository.create({
+      await this.approvalsRepository.create({
         requestId: req.id,
         approverId: userId,
         stageCode: req.stageCode,
         decision,
-        decidedAt: new Date(),
       });
     } catch (e: any) {
       if (e.message.includes('Duplicate')) {
@@ -54,15 +54,19 @@ export class ApprovalsService {
     }
 
     if (decision === 'reject') {
-      this.requestsRepository.update(req.id, { status: 'REJECTED' });
-      return this.requestsRepository.findById(req.id);
+      await this.requestsRepository.update(req.id, { status: 'REJECTED' });
+      const result = await this.requestsRepository.findById(req.id);
+      if (!result) throw new NotFoundException('Request not found');
+      return result;
     }
 
     const rule = this.rules.get(req.departmentId, req.stageCode) || { minApprovers: 1 };
-    const count = this.approvalsRepository.countDistinctApprovers(req.id, req.stageCode, 'approve');
+    const count = await this.approvalsRepository.countDistinctApprovers(req.id, req.stageCode, 'approve');
     if (count >= rule.minApprovers) {
-      this.requestsRepository.update(req.id, { status: 'APPROVED' });
+      await this.requestsRepository.update(req.id, { status: 'APPROVED' });
     }
-    return this.requestsRepository.findById(req.id);
+    const result = await this.requestsRepository.findById(req.id);
+    if (!result) throw new NotFoundException('Request not found');
+    return result;
   }
 }

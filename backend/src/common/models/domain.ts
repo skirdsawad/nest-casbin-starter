@@ -9,7 +9,7 @@ export interface User {
 }
 
 export interface Department {
-  id: number;
+  id: string;
   code: string;  // e.g., 'D10'
   name: string;
 }
@@ -17,8 +17,8 @@ export interface Department {
 export type RequestStatus = 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED';
 
 export interface RequestEntity {
-  id: number;
-  departmentId: number;
+  id: string;
+  departmentId: string;
   createdBy: string;         // userId
   status: RequestStatus;
   stageCode: string;         // e.g., 'DEPT_HEAD', 'AMD_REVIEW'
@@ -28,8 +28,8 @@ export interface RequestEntity {
 }
 
 export interface Approval {
-  id: number;
-  requestId: number;
+  id: string;
+  requestId: string;
   approverId: string;
   stageCode: string;         // stage approved
   decision: 'approve' | 'reject';
@@ -37,8 +37,8 @@ export interface Approval {
 }
 
 export interface ApprovalRule {
-  id: number;
-  departmentId: number;
+  id: string;
+  departmentId: string;
   stageCode: string;         // 'DEPT_HEAD' or 'AMD_REVIEW'
   minApprovers: number;      // 1 or 2
   fallbackRole?: RoleCode;   // e.g., 'AMD' when no HD exists

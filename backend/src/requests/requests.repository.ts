@@ -1,34 +1,38 @@
 import { Injectable } from '@nestjs/common';
-import { RequestEntity } from '../common/models/domain';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { RequestEntity } from '../common/entities/request.entity';
 
 @Injectable()
 export class RequestsRepository {
-  private _id = 1;
-  private readonly REQS: RequestEntity[] = [];
+  constructor(
+    @InjectRepository(RequestEntity)
+    private readonly requestsRepository: Repository<RequestEntity>,
+  ) {}
 
-  create(data: Omit<RequestEntity, 'id' | 'createdAt' | 'updatedAt'>): RequestEntity {
-    const now = new Date();
-    const r: RequestEntity = { id: this._id++, createdAt: now, updatedAt: now, ...data };
-    this.REQS.push(r);
-    return r;
+  create(data: Omit<RequestEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<RequestEntity> {
+    const request = this.requestsRepository.create(data);
+    return this.requestsRepository.save(request);
   }
 
-  update(id: number, patch: Partial<RequestEntity>): RequestEntity {
-    const r = this.REQS.find((x) => x.id === id);
-    if (!r) throw new Error('NotFound');
-    Object.assign(r, patch, { updatedAt: new Date() });
-    return r;
+  async update(id: number, patch: Partial<RequestEntity>): Promise<RequestEntity> {
+    await this.requestsRepository.update(id, patch);
+    const result = await this.findById(id);
+    if (!result) {
+      throw new Error('Not Found');
+    }
+    return result;
   }
 
-  findById(id: number): RequestEntity | undefined {
-    return this.REQS.find((x) => x.id === id);
+  findById(id: number): Promise<RequestEntity | undefined> {
+    return this.requestsRepository.findOneBy({ id });
   }
 
-  findByDepartmentId(deptId: number): RequestEntity[] {
-    return this.REQS.filter((x) => x.departmentId == deptId);
+  findByDepartmentId(deptId: number): Promise<RequestEntity[]> {
+    return this.requestsRepository.findBy({ departmentId: deptId });
   }
 
-  findAll(): RequestEntity[] {
-    return this.REQS;
+  findAll(): Promise<RequestEntity[]> {
+    return this.requestsRepository.find();
   }
 }

@@ -1,34 +1,45 @@
-export const POLICY_CSV = `
-p, AF,   *,   requests, view
-p, AF,   *,   requests, create
-p, AF,   *,   requests, edit
+import { Enforcer } from 'casbin';
+import { User } from '../../users/user.entity';
 
-p, CG,   *,   requests, view
-p, CG,   *,   requests, bulk_approve
-p, CG,   *,   requests, approve:DEPT_HEAD
-p, CG,   *,   requests, approve:AMD_REVIEW
+export async function seedPolicies(enf: Enforcer, users: User[]) {
+  const policies = [
+    // AF can view, create, edit requests in any department
+    ['AF', '*', 'requests', 'view'],
+    ['AF', '*', 'requests', 'create'],
+    ['AF', '*', 'requests', 'edit'],
 
-# D15 has HD approval at DEPT_HEAD
-p, HD,  D15,  requests, view
-p, HD,  D15,  requests, create
-p, HD,  D15,  requests, edit
-p, HD,  D15,  requests, approve:DEPT_HEAD
+    // CG can view, bulk_approve, and approve specific stages in any department
+    ['CG', '*', 'requests', 'view'],
+    ['CG', '*', 'requests', 'bulk_approve'],
+    ['CG', '*', 'requests', 'approve:DEPT_HEAD'],
+    ['CG', '*', 'requests', 'approve:AMD_REVIEW'],
 
-# AMD can approve fallback stage globally
-p, AMD,   *,  requests, approve:AMD_REVIEW
-`;
+    // HD in D15 can view, create, edit, and approve DEPT_HEAD stage
+    ['HD', 'D15', 'requests', 'view'],
+    ['HD', 'D15', 'requests', 'create'],
+    ['HD', 'D15', 'requests', 'edit'],
+    ['HD', 'D15', 'requests', 'approve:DEPT_HEAD'],
 
-export const GROUPING_CSV = `
-# Two heads in D15
-g, user_hd_a, HD,  D15
-g, user_hd_b, HD,  D15
+    // AMD can approve AMD_REVIEW stage in any department
+    ['AMD', '*', 'requests', 'approve:AMD_REVIEW'],
+  ];
 
-# No HD in D19 (fallback to AMD)
+  for (const p of policies) {
+    await enf.addPolicy(...p);
+  }
 
-# AMD global
-g, user_amd_1, AMD, *
+  const userRoles = {
+    'user_hd_a@example.com': { role: 'HD', domain: 'D15' },
+    'user_hd_b@example.com': { role: 'HD', domain: 'D15' },
+    'user_amd_1@example.com': { role: 'AMD', domain: '*' },
+    'user_af_1@example.com': { role: 'AF', domain: '*' },
+    'user_cg_1@example.com': { role: 'CG', domain: '*' },
+  };
 
-# AF, CG global
-g, user_af_1, AF, *
-g, user_cg_1, CG, *
-`;
+  for (const user of users) {
+    const roleInfo = userRoles[user.email];
+    if (roleInfo) {
+      await enf.addRoleForUserInDomain(user.id, roleInfo.role, roleInfo.domain);
+    }
+  }
+}

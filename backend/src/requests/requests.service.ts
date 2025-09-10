@@ -4,7 +4,7 @@ import { RequestsRepository } from './requests.repository';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { UserContext } from '../common/auth/user-context.service';
 import { CreateRequestDto } from './dto/create-request.dto';
-import { RequestEntity } from '../common/models/domain';
+import { RequestEntity } from '../common/entities/request.entity';
 
 @Injectable()
 export class RequestsService {
@@ -14,7 +14,7 @@ export class RequestsService {
     private readonly userContext: UserContext,
   ) {}
 
-  async list(departmentId: number): Promise<RequestEntity[]> {
+  async list(departmentId: string): Promise<RequestEntity[]> {
     return this.repository.findByDepartmentId(departmentId);
   }
 
@@ -29,28 +29,28 @@ export class RequestsService {
       payload,
       status: 'DRAFT',
       stageCode: initialStage,
-    });
+    } as RequestEntity);
   }
 
-  async findById(id: number): Promise<RequestEntity> {
-    const request = this.repository.findById(id);
+  async findById(id: string): Promise<RequestEntity> {
+    const request = await this.repository.findById(id);
     if (!request) {
       throw new NotFoundException('Request not found');
     }
     return request;
   }
 
-  async submit(id: number): Promise<RequestEntity> {
-    const r = this.repository.findById(id);
+  async submit(id: string): Promise<RequestEntity> {
+    const r = await this.repository.findById(id);
     if (!r) throw new NotFoundException('Request not found');
     return this.repository.update(id, { status: 'IN_REVIEW' });
   }
 
-  async approve(id: number, decision: 'approve' | 'reject'): Promise<RequestEntity> {
+  async approve(id: string, decision: 'approve' | 'reject'): Promise<RequestEntity> {
     return this.approvals.approve(id, decision);
   }
 
-  async bulk(ids: number[], action: 'approve' | 'reject'): Promise<RequestEntity[]> {
+  async bulk(ids: string[], action: 'approve' | 'reject'): Promise<RequestEntity[]> {
     const out: RequestEntity[] = [];
     for (const id of ids) {
       out.push(await this.approvals.approve(id, action));

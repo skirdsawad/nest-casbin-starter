@@ -1,9 +1,10 @@
 
-import { IsArray, IsIn } from 'class-validator';
+import { IsArray, IsIn, IsUUID } from 'class-validator';
 
 export class BulkActionDto {
   @IsArray()
-  ids: number[];
+  @IsUUID('all', { each: true })
+  ids: string[];
 
   @IsIn(['approve', 'reject'])
   action: 'approve' | 'reject';

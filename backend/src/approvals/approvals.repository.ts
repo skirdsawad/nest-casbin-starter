@@ -1,43 +1,42 @@
 import { Injectable } from '@nestjs/common';
-import { Approval } from '../common/models/domain';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Approval } from '../common/entities/approval.entity';
 
 @Injectable()
 export class ApprovalsRepository {
-  private _id = 1;
-  private readonly APPRS: Approval[] = [];
+  constructor(
+    @InjectRepository(Approval)
+    private readonly approvalsRepository: Repository<Approval>,
+  ) {}
 
-  create(a: Omit<Approval, 'id'>): Approval {
+  async create(a: Omit<Approval, 'id' | 'decidedAt'>): Promise<Approval> {
     // uniqueness: (requestId, stageCode, approverId)
-    if (
-      this.APPRS.some(
-        (x) =>
-          x.requestId === a.requestId &&
-          x.stageCode === a.stageCode &&
-          x.approverId === a.approverId,
-      )
-    ) {
+    const existing = await this.approvalsRepository.findOneBy({
+      requestId: a.requestId,
+      stageCode: a.stageCode,
+      approverId: a.approverId,
+    });
+
+    if (existing) {
       throw new Error('Duplicate approval by same user');
     }
-    const rec: Approval = { id: this._id++, ...a };
-    this.APPRS.push(rec);
-    return rec;
+
+    const approval = this.approvalsRepository.create(a);
+    return this.approvalsRepository.save(approval);
   }
 
   countDistinctApprovers(
     requestId: number,
     stageCode: string,
     decision: 'approve' | 'reject',
-  ): number {
-    const set = new Set<string>();
-    for (const a of this.APPRS) {
-      if (
-        a.requestId === requestId &&
-        a.stageCode === stageCode &&
-        a.decision === decision
-      ) {
-        set.add(a.approverId);
-      }
-    }
-    return set.size;
+  ): Promise<number> {
+    return this.approvalsRepository.count({
+      where: {
+        requestId,
+        stageCode,
+        decision,
+      },
+    });
   }
 }
