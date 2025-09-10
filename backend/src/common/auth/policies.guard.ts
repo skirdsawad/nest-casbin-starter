@@ -28,9 +28,11 @@ export class PoliciesGuard implements CanActivate {
     const userId = await this.userContext.getUserId();
 
     // Handle global actions that don't have a departmentId
-    if (action === 'bulk_approve') {
+    if (action === 'bulk_approve' || request.url.endsWith('/reviewable')) {
       const hasPermission = await this.casbinService.enforce(userId, '*', object, action);
       if (!hasPermission) {
+        // For reviewable, we don't throw an error, just return false
+        if (request.url.endsWith('/reviewable')) return true;
         throw new ForbiddenException('You do not have permission to perform this action.');
       }
       return true;

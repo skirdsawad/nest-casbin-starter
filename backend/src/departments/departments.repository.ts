@@ -29,6 +29,7 @@ export class DepartmentsRepository {
       { code: 'MKT', name: 'Marketing' },
       { code: 'IT', name: 'IT' },
       { code: 'SP', name: 'Strategic&Planning' },
+      { code: 'AF', name: 'Accounting&Financial' },
     ];
 
     const seededDepts: Department[] = [];

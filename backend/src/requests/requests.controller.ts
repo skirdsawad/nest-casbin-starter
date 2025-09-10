@@ -6,6 +6,8 @@ import { BulkActionDto } from './dto/bulk-action.dto';
 import { PoliciesGuard } from '../common/auth/policies.guard';
 import { CheckPolicies } from '../common/auth/policies.decorator';
 
+import { RequestWithActionsDto } from './dto/request-with-actions.dto';
+
 @Controller('requests')
 @UseGuards(PoliciesGuard)
 export class RequestsController {
@@ -13,8 +15,14 @@ export class RequestsController {
 
   @Get()
   @CheckPolicies('requests', 'view')
-  list(@Query('departmentId', ParseUUIDPipe) departmentId: string) {
+  list(@Query('departmentId', ParseUUIDPipe) departmentId: string): Promise<RequestWithActionsDto[]> {
     return this.svc.list(departmentId);
+  }
+
+  @Get('reviewable')
+  @CheckPolicies('requests', 'view') // Still need a basic view check
+  findReviewable(): Promise<RequestWithActionsDto[]> {
+    return this.svc.findReviewable();
   }
 
   @Get(':id')

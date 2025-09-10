@@ -2,21 +2,24 @@ import { Enforcer } from 'casbin';
 import { User } from '../../users/user.entity';
 
 export async function seedPolicies(enf: Enforcer, users: User[]) {
-  const departments = ['HR', 'MKT', 'IT', 'SP'];
+  const departments = ['HR', 'MKT', 'IT', 'SP', 'AF'];
   const policies = [];
 
-  // Add policies for each department for HD and AF roles
+  // Add policies for each department for HD and STAFF roles
   for (const dept of departments) {
     // HD permissions
     policies.push(['HD', dept, 'requests', 'view']);
     policies.push(['HD', dept, 'requests', 'create']);
     policies.push(['HD', dept, 'requests', 'edit']);
     policies.push(['HD', dept, 'requests', 'approve:DEPT_HEAD']);
-    // AF permissions
-    policies.push(['AF', dept, 'requests', 'view']);
-    policies.push(['AF', dept, 'requests', 'create']);
-    policies.push(['AF', dept, 'requests', 'edit']);
+    // STAFF permissions
+    policies.push(['STAFF', dept, 'requests', 'view']);
+    policies.push(['STAFF', dept, 'requests', 'create']);
+    policies.push(['STAFF', dept, 'requests', 'edit']);
   }
+
+  // AF role can approve at the AF_REVIEW stage in any department
+  policies.push(['AF', '*', 'requests', 'approve:AF_REVIEW']);
 
   // Global policies for CG and AMD
   policies.push(['CG', '*', 'requests', 'view']);
@@ -36,9 +39,10 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     'it.head@example.com': { role: 'HD', domain: 'IT' },
     'sp.head@example.com': { role: 'HD', domain: 'SP' },
     // Department Staff
-    'hr.user@example.com': { role: 'AF', domain: 'HR' },
-    'mkt.user@example.com': { role: 'AF', domain: 'MKT' },
-    'it.user@example.com': { role: 'AF', domain: 'IT' },
+    'hr.user@example.com': { role: 'STAFF', domain: 'HR' },
+    'mkt.user@example.com': { role: 'STAFF', domain: 'MKT' },
+    'it.user@example.com': { role: 'STAFF', domain: 'IT' },
+    'af.user@example.com': { role: 'AF', domain: '*' }, // This user is now a global AF approver
     // Global Roles
     'amd.user@example.com': { role: 'AMD', domain: '*' },
     'cg.user@example.com': { role: 'CG', domain: '*' },

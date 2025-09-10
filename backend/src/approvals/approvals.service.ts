@@ -34,6 +34,11 @@ export class ApprovalsService {
     const req = await this.requestsRepository.findById(requestId);
     if (!req) throw new NotFoundException('Request not found');
 
+    // Prevent self-approval
+    if (req.createdBy === userId) {
+      throw new ForbiddenException('You cannot approve your own request.');
+    }
+
     const deptCode = await this.depts.getCodeById(req.departmentId);
     const action = `approve:${req.stageCode}`;
     const ok = await this.policy.enforce(userId, deptCode, 'requests', action);
@@ -63,10 +68,26 @@ export class ApprovalsService {
     const rule = (await this.rules.get(req.departmentId, req.stageCode)) || { minApprovers: 1 };
     const count = await this.approvalsRepository.countDistinctApprovers(req.id, req.stageCode, 'approve');
     if (count >= rule.minApprovers) {
-      await this.requestsRepository.update(req.id, { status: 'APPROVED' });
+      const nextStage = await this.determineNextStage(req.departmentId, req.stageCode);
+      if (nextStage) {
+        await this.requestsRepository.update(req.id, { stageCode: nextStage });
+      } else {
+        await this.requestsRepository.update(req.id, { status: 'APPROVED' });
+      }
     }
     const result = await this.requestsRepository.findById(req.id);
     if (!result) throw new NotFoundException('Request not found');
     return result;
+  }
+
+  private async determineNextStage(departmentId: string, currentStage: string): Promise<string | null> {
+    if (currentStage === 'DEPT_HEAD') {
+      return 'AF_REVIEW';
+    }
+    // After AF_REVIEW, the process is finished
+    if (currentStage === 'AF_REVIEW') {
+      return null;
+    }
+    return null;
   }
 }

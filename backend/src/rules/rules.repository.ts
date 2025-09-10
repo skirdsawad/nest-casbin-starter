@@ -27,10 +27,19 @@ export class RulesRepository {
 
   async seed(departments: Department[]) {
     const rulesData: { deptCode: string; stageCode: string; minApprovers: number; fallbackRole: RoleCode | null }[] = [
+      // All departments require 1 HD approval, with some having an AMD fallback
       { deptCode: 'HR', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
       { deptCode: 'MKT', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
       { deptCode: 'IT', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
       { deptCode: 'SP', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
+      { deptCode: 'AF', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
+
+      // All departments require 1 AF approval after the HD stage
+      { deptCode: 'HR', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'MKT', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'IT', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'SP', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'AF', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
     ];
 
     for (const ruleData of rulesData) {

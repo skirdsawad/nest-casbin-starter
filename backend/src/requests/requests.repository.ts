@@ -32,6 +32,10 @@ export class RequestsRepository {
     return this.requestsRepository.findBy({ departmentId });
   }
 
+  findInReview(): Promise<RequestEntity[]> {
+    return this.requestsRepository.findBy({ status: 'IN_REVIEW' });
+  }
+
   findAll(): Promise<RequestEntity[]> {
     return this.requestsRepository.find();
   }

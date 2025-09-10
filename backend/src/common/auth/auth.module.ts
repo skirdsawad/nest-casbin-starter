@@ -6,7 +6,7 @@ import { RequestsModule } from '../../requests/requests.module';
 import { UsersModule } from '../../users/users.module';
 
 @Module({
-  imports: [UsersModule, DepartmentsModule, forwardRef(() => RequestsModule)],
+  imports: [UsersModule, forwardRef(() => DepartmentsModule), forwardRef(() => RequestsModule)],
   providers: [UserContext, PoliciesGuard],
   exports: [UserContext, PoliciesGuard],
 })

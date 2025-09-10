@@ -7,7 +7,8 @@
     "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
-    "seed": "ts-node -r tsconfig-paths/register src/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
+    "db:reset": "ts-node -r tsconfig-paths/register src/db-reset.ts && npm run seed"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

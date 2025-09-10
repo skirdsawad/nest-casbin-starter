@@ -15,6 +15,6 @@ export class ApprovalRule {
   @Column()
   minApprovers: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   fallbackRole?: RoleCode;
 }

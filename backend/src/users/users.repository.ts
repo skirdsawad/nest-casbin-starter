@@ -14,6 +14,15 @@ export class UsersRepository {
     return this.usersRepository.findOneBy({ email });
   }
 
+  findAll(): Promise<User[]> {
+    return this.usersRepository.find();
+  }
+
+  create(user: Partial<User>): Promise<User> {
+    const newUser = this.usersRepository.create(user);
+    return this.usersRepository.save(newUser);
+  }
+
   async seed(): Promise<User[]> {
     const usersData = [
       // Department Heads
@@ -25,6 +34,7 @@ export class UsersRepository {
       { email: 'hr.user@example.com', displayName: 'HR User' },
       { email: 'mkt.user@example.com', displayName: 'Marketing User' },
       { email: 'it.user@example.com', displayName: 'IT User' },
+      { email: 'af.user@example.com', displayName: 'AF User' },
       // Global Roles
       { email: 'amd.user@example.com', displayName: 'AMD User' },
       { email: 'cg.user@example.com', displayName: 'CG User' },

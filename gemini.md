@@ -56,3 +56,44 @@ To improve separation of concerns and make authorization more declarative, the i
     *   The e2e tests were re-run and all passed, confirming the guard works as expected.
 
 This approach makes the authorization logic reusable, declarative, and centralizes the enforcement logic, which is a significant improvement over the previous implementation.
+
+---
+
+## Database and Authentication Overhaul (September 2025)
+
+The application was significantly refactored to move from an in-memory proof-of-concept to a more robust, database-driven architecture with proper user management.
+
+### 1. PostgreSQL Integration (TypeORM)
+*   **Persistence**: Replaced all in-memory array-based repositories with a PostgreSQL database managed by TypeORM.
+*   **Dependencies**: Added `@nestjs/typeorm`, `typeorm`, and `pg`.
+*   **Entities**: Created TypeORM entities for all domain models (`User`, `RequestEntity`, `Department`, `Approval`, `ApprovalRule`).
+*   **Casbin Storage**: Integrated `typeorm-adapter` to store Casbin authorization policies and roles directly in the database, replacing the previous file-based `StringAdapter`.
+*   **Schema Sync**: The main `AppModule` is configured with `synchronize: true` for development, allowing TypeORM to automatically create and update the database schema based on entity definitions.
+
+### 2. UUID Primary Keys
+*   **Data Model**: All primary keys (`id`) and corresponding foreign key columns were changed from auto-incrementing integers to UUIDs (`string`).
+*   **API Impact**: Controller routes were updated to use `ParseUUIDPipe` for ID validation, and DTOs were updated with `@IsUUID` decorators.
+*   **Services**: All services and repositories were updated to handle `string` IDs instead of `number`.
+
+### 3. Configuration (`.env`)
+*   **Environment Variables**: Added `@nestjs/config` to manage configuration.
+*   **Security**: The hardcoded PostgreSQL connection string was removed from the source code. It is now stored in a `.env` file (`DATABASE_URL`) which is excluded from Git via `.gitignore`.
+*   **Dynamic Configuration**: `AppModule` and `CasbinModule` were updated to be asynchronous and inject `ConfigService` to retrieve the database URL at runtime.
+
+### 4. User Management Module
+*   **Foundation**: A new, dedicated `UsersModule` was created with a `User` entity, `UsersRepository`, and `UsersService`.
+*   **User Seeding**: The user repository now includes a `seed()` method to populate the database with a realistic set of users (department heads, staff, etc.).
+
+### 5. Dynamic User Context & Authorization
+*   **Database-Driven Auth**: The request-scoped `UserContext` service was refactored. It no longer uses a hardcoded `x-user-id` header.
+*   **User Simulation**: It now simulates a logged-in user by fetching a user record from the database based on an `x-user-email` header.
+*   **Asynchronous Update**: The `userId` property was replaced with an async `getUserId()` method. All dependent services (`RequestsService`, `PoliciesGuard`, `ApprovalsService`) were updated to `await` this method, making the entire request context aware of the asynchronous user lookup.
+*   **Policy Seeding**: The Casbin policy seeding script was updated to use the UUIDs of the newly seeded users, linking authorization rules to actual user records.
+
+### 6. Data Seeding
+*   **Orchestration**: The main `seed.ts` script was overhauled to manage the entire seeding process in the correct order of dependency:
+    1.  Seed Users
+    2.  Seed Departments
+    3.  Seed Rules (which depend on Department IDs)
+    4.  Seed Casbin Policies (which depend on User IDs)
+*   **Data Alignment**: The seed data for users, departments, and rules was updated to reflect a more realistic organizational structure (e.g., "Human Resources", "IT").
