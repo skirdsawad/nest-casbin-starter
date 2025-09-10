@@ -1,0 +1,24 @@
+
+import { Module, forwardRef } from '@nestjs/common';
+import { RequestsController } from './requests.controller';
+import { RequestsService } from './requests.service';
+import { DepartmentsModule } from '../departments/departments.module';
+import { RulesModule } from '../rules/rules.module';
+import { CasbinModule } from '../common/casbin/casbin.module';
+import { AuthModule } from '../common/auth/auth.module';
+import { RequestsRepository } from './requests.repository';
+import { ApprovalsModule } from '../approvals/approvals.module';
+
+@Module({
+  imports: [
+    DepartmentsModule,
+    RulesModule,
+    CasbinModule,
+    AuthModule,
+    forwardRef(() => ApprovalsModule),
+  ],
+  controllers: [RequestsController],
+  providers: [RequestsService, RequestsRepository],
+  exports: [RequestsRepository],
+})
+export class RequestsModule {}
