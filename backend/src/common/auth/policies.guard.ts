@@ -25,7 +25,7 @@ export class PoliciesGuard implements CanActivate {
 
     const [object, action] = policy;
     const request = context.switchToHttp().getRequest<Request>();
-    const userId = this.userContext.userId;
+    const userId = await this.userContext.getUserId();
 
     // Handle global actions that don't have a departmentId
     if (action === 'bulk_approve') {
@@ -41,7 +41,7 @@ export class PoliciesGuard implements CanActivate {
       throw new ForbiddenException('Department ID not found in request');
     }
 
-    const departmentCode = await this.departmentsService.getCodeById(departmentI);
+    const departmentCode = await this.departmentsService.getCodeById(departmentId);
 
     const hasPermission = await this.casbinService.enforce(userId, departmentCode, object, action);
 

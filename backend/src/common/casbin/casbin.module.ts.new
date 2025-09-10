@@ -2,7 +2,7 @@ import { Module, Global } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { newEnforcer, Enforcer } from 'casbin';
 import { join } from 'path';
-import TypeOrmAdapter from 'typeorm-adapter';
+import { TypeOrmAdapter } from 'typeorm-adapter';
 import { CasbinService } from './casbin.service';
 
 @Global()

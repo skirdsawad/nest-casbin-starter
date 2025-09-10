@@ -16,11 +16,18 @@ export class UsersRepository {
 
   async seed(): Promise<User[]> {
     const usersData = [
-      { email: 'user_hd_a@example.com', displayName: 'HD User A' },
-      { email: 'user_hd_b@example.com', displayName: 'HD User B' },
-      { email: 'user_amd_1@example.com', displayName: 'AMD User 1' },
-      { email: 'user_af_1@example.com', displayName: 'AF User 1' },
-      { email: 'user_cg_1@example.com', displayName: 'CG User 1' },
+      // Department Heads
+      { email: 'hr.head@example.com', displayName: 'HR Head' },
+      { email: 'mkt.head@example.com', displayName: 'Marketing Head' },
+      { email: 'it.head@example.com', displayName: 'IT Head' },
+      { email: 'sp.head@example.com', displayName: 'Strategic Planning Head' },
+      // Department Staff (creators/editors)
+      { email: 'hr.user@example.com', displayName: 'HR User' },
+      { email: 'mkt.user@example.com', displayName: 'Marketing User' },
+      { email: 'it.user@example.com', displayName: 'IT User' },
+      // Global Roles
+      { email: 'amd.user@example.com', displayName: 'AMD User' },
+      { email: 'cg.user@example.com', displayName: 'CG User' },
     ];
 
     const seededUsers: User[] = [];

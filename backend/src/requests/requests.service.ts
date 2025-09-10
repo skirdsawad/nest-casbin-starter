@@ -19,7 +19,7 @@ export class RequestsService {
   }
 
   async create(createRequestDto: CreateRequestDto): Promise<RequestEntity> {
-    const userId = this.userContext.userId;
+    const userId = await this.userContext.getUserId();
     const { departmentId, payload } = createRequestDto;
 
     const initialStage = await this.approvals.determineInitialStage(departmentId);

@@ -10,11 +10,11 @@ export class RulesService {
     return this.repository.findAll();
   }
 
-  findByDepartmentId(departmentId: number): Promise<ApprovalRule[]> {
+  findByDepartmentId(departmentId: string): Promise<ApprovalRule[]> {
     return this.repository.findByDepartmentId(departmentId);
   }
 
-  get(departmentId: number, stageCode: string): Promise<ApprovalRule | undefined> {
+  get(departmentId: string, stageCode: string): Promise<ApprovalRule | undefined> {
     return this.repository.findByDepartmentIdAndStageCode(departmentId, stageCode);
   }
 }

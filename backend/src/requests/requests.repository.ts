@@ -15,7 +15,7 @@ export class RequestsRepository {
     return this.requestsRepository.save(request);
   }
 
-  async update(id: number, patch: Partial<RequestEntity>): Promise<RequestEntity> {
+  async update(id: string, patch: Partial<RequestEntity>): Promise<RequestEntity> {
     await this.requestsRepository.update(id, patch);
     const result = await this.findById(id);
     if (!result) {
@@ -24,12 +24,12 @@ export class RequestsRepository {
     return result;
   }
 
-  findById(id: number): Promise<RequestEntity | undefined> {
+  findById(id: string): Promise<RequestEntity | undefined> {
     return this.requestsRepository.findOneBy({ id });
   }
 
-  findByDepartmentId(deptId: number): Promise<RequestEntity[]> {
-    return this.requestsRepository.findBy({ departmentId: deptId });
+  findByDepartmentId(departmentId: string): Promise<RequestEntity[]> {
+    return this.requestsRepository.findBy({ departmentId });
   }
 
   findAll(): Promise<RequestEntity[]> {

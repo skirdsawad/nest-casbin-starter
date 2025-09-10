@@ -2,44 +2,52 @@ import { Enforcer } from 'casbin';
 import { User } from '../../users/user.entity';
 
 export async function seedPolicies(enf: Enforcer, users: User[]) {
-  const policies = [
-    // AF can view, create, edit requests in any department
-    ['AF', '*', 'requests', 'view'],
-    ['AF', '*', 'requests', 'create'],
-    ['AF', '*', 'requests', 'edit'],
+  const departments = ['HR', 'MKT', 'IT', 'SP'];
+  const policies = [];
 
-    // CG can view, bulk_approve, and approve specific stages in any department
-    ['CG', '*', 'requests', 'view'],
-    ['CG', '*', 'requests', 'bulk_approve'],
-    ['CG', '*', 'requests', 'approve:DEPT_HEAD'],
-    ['CG', '*', 'requests', 'approve:AMD_REVIEW'],
+  // Add policies for each department for HD and AF roles
+  for (const dept of departments) {
+    // HD permissions
+    policies.push(['HD', dept, 'requests', 'view']);
+    policies.push(['HD', dept, 'requests', 'create']);
+    policies.push(['HD', dept, 'requests', 'edit']);
+    policies.push(['HD', dept, 'requests', 'approve:DEPT_HEAD']);
+    // AF permissions
+    policies.push(['AF', dept, 'requests', 'view']);
+    policies.push(['AF', dept, 'requests', 'create']);
+    policies.push(['AF', dept, 'requests', 'edit']);
+  }
 
-    // HD in D15 can view, create, edit, and approve DEPT_HEAD stage
-    ['HD', 'D15', 'requests', 'view'],
-    ['HD', 'D15', 'requests', 'create'],
-    ['HD', 'D15', 'requests', 'edit'],
-    ['HD', 'D15', 'requests', 'approve:DEPT_HEAD'],
-
-    // AMD can approve AMD_REVIEW stage in any department
-    ['AMD', '*', 'requests', 'approve:AMD_REVIEW'],
-  ];
+  // Global policies for CG and AMD
+  policies.push(['CG', '*', 'requests', 'view']);
+  policies.push(['CG', '*', 'requests', 'bulk_approve']);
+  policies.push(['CG', '*', 'requests', 'approve:DEPT_HEAD']);
+  policies.push(['CG', '*', 'requests', 'approve:AMD_REVIEW']);
+  policies.push(['AMD', '*', 'requests', 'approve:AMD_REVIEW']);
 
   for (const p of policies) {
     await enf.addPolicy(...p);
   }
 
   const userRoles = {
-    'user_hd_a@example.com': { role: 'HD', domain: 'D15' },
-    'user_hd_b@example.com': { role: 'HD', domain: 'D15' },
-    'user_amd_1@example.com': { role: 'AMD', domain: '*' },
-    'user_af_1@example.com': { role: 'AF', domain: '*' },
-    'user_cg_1@example.com': { role: 'CG', domain: '*' },
+    // Department Heads
+    'hr.head@example.com': { role: 'HD', domain: 'HR' },
+    'mkt.head@example.com': { role: 'HD', domain: 'MKT' },
+    'it.head@example.com': { role: 'HD', domain: 'IT' },
+    'sp.head@example.com': { role: 'HD', domain: 'SP' },
+    // Department Staff
+    'hr.user@example.com': { role: 'AF', domain: 'HR' },
+    'mkt.user@example.com': { role: 'AF', domain: 'MKT' },
+    'it.user@example.com': { role: 'AF', domain: 'IT' },
+    // Global Roles
+    'amd.user@example.com': { role: 'AMD', domain: '*' },
+    'cg.user@example.com': { role: 'CG', domain: '*' },
   };
 
   for (const user of users) {
     const roleInfo = userRoles[user.email];
     if (roleInfo) {
-      await enf.addRoleForUserInDomain(user.id, roleInfo.role, roleInfo.domain);
+      await enf.addRoleForUser(user.id, roleInfo.role, roleInfo.domain);
     }
   }
 }

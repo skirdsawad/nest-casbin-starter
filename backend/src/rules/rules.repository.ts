@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApprovalRule } from '../common/entities/approval-rule.entity';
 import { Department } from '../common/entities/department.entity';
+import { RoleCode } from '../common/models/domain';
 
 @Injectable()
 export class RulesRepository {
@@ -25,9 +26,11 @@ export class RulesRepository {
   }
 
   async seed(departments: Department[]) {
-    const rulesData = [
-      { deptCode: 'D15', stageCode: 'DEPT_HEAD', minApprovers: 2, fallbackRole: null },
-      { deptCode: 'D19', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
+    const rulesData: { deptCode: string; stageCode: string; minApprovers: number; fallbackRole: RoleCode | null }[] = [
+      { deptCode: 'HR', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'MKT', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
+      { deptCode: 'IT', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
+      { deptCode: 'SP', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
     ];
 
     for (const ruleData of rulesData) {

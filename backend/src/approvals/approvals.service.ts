@@ -18,23 +18,23 @@ export class ApprovalsService {
     private readonly userContext: UserContext,
   ) {}
 
-  async determineInitialStage(departmentId: number): Promise<string> {
-    const deptCode = this.depts.getCodeById(departmentId);
+  async determineInitialStage(departmentId: string): Promise<string> {
+    const deptCode = await this.depts.getCodeById(departmentId);
     const act = 'approve:DEPT_HEAD';
     const hasHD = await this.policy.hasAnyEligible('HD', deptCode, act);
     if (hasHD) return 'DEPT_HEAD';
 
-    const rule = this.rules.get(departmentId, 'DEPT_HEAD');
+    const rule = await this.rules.get(departmentId, 'DEPT_HEAD');
     if (rule?.fallbackRole === 'AMD') return 'AMD_REVIEW';
     return 'DEPT_HEAD';
   }
 
-  async approve(requestId: number, decision: 'approve' | 'reject'): Promise<RequestEntity> {
-    const userId = this.userContext.userId;
+  async approve(requestId: string, decision: 'approve' | 'reject'): Promise<RequestEntity> {
+    const userId = await this.userContext.getUserId();
     const req = await this.requestsRepository.findById(requestId);
     if (!req) throw new NotFoundException('Request not found');
 
-    const deptCode = this.depts.getCodeById(req.departmentId);
+    const deptCode = await this.depts.getCodeById(req.departmentId);
     const action = `approve:${req.stageCode}`;
     const ok = await this.policy.enforce(userId, deptCode, 'requests', action);
     if (!ok) throw new ForbiddenException('Not eligible to approve this stage');
@@ -60,7 +60,7 @@ export class ApprovalsService {
       return result;
     }
 
-    const rule = this.rules.get(req.departmentId, req.stageCode) || { minApprovers: 1 };
+    const rule = (await this.rules.get(req.departmentId, req.stageCode)) || { minApprovers: 1 };
     const count = await this.approvalsRepository.countDistinctApprovers(req.id, req.stageCode, 'approve');
     if (count >= rule.minApprovers) {
       await this.requestsRepository.update(req.id, { status: 'APPROVED' });

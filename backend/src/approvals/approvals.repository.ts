@@ -27,7 +27,7 @@ export class ApprovalsRepository {
   }
 
   countDistinctApprovers(
-    requestId: number,
+    requestId: string,
     stageCode: string,
     decision: 'approve' | 'reject',
   ): Promise<number> {
