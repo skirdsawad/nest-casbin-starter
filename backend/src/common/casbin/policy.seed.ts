@@ -39,13 +39,13 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     'mkt.head@example.com': { role: 'HD', domain: 'MKT' },
     'it.head@example.com': { role: 'HD', domain: 'IT' },
     'sp.head@example.com': { role: 'HD', domain: 'SP' },
+    'af.head@example.com': { role: 'HD', domain: 'AF' },
     // Department Staff
     'hr.user@example.com': { role: 'STAFF', domain: 'HR' },
     'mkt.user@example.com': { role: 'STAFF', domain: 'MKT' },
     'it.user@example.com': { role: 'STAFF', domain: 'IT' },
     'sp.user@example.com': { role: 'STAFF', domain: 'SP' },
-    'af.user@example.com': { role: 'STAFF', domain: 'AF' }, // AF staff
-    'af.head@example.com': { role: 'HD', domain: 'AF' }, // AF head
+    'af.user@example.com': { role: 'STAFF', domain: 'AF' },
     // Additional staff
     'hr.staff2@example.com': { role: 'STAFF', domain: 'HR' },
     'mkt.staff2@example.com': { role: 'STAFF', domain: 'MKT' },
@@ -54,14 +54,20 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     'cg.user@example.com': { role: 'CG', domain: '*' },
   };
 
+  // Special roles for AF users (in addition to their primary department roles)
+  const afApproverUsers = ['af.user@example.com', 'af.head@example.com'];
+
+  // Assign primary roles
   for (const user of users) {
     const roleInfo = userRoles[user.email];
     if (roleInfo) {
       await enf.addRoleForUser(user.id, roleInfo.role, roleInfo.domain);
     }
-    
-    // AF staff and head also get global AF_APPROVER role for cross-department AF_REVIEW approvals
-    if (user.email === 'af.user@example.com' || user.email === 'af.head@example.com') {
+  }
+
+  // Assign AF_APPROVER role to AF department users for cross-department approvals
+  for (const user of users) {
+    if (afApproverUsers.includes(user.email)) {
       await enf.addRoleForUser(user.id, 'AF_APPROVER', '*');
     }
   }

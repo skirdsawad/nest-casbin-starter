@@ -31,28 +31,77 @@ describe('E2E - API Tests', () => {
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
 
-    // Seed the database for testing
-    console.log('Seeding test database...');
+    // Use ACTUAL seeded data, don't reseed for the debug test
+    console.log('Using actual seeded database (no reseeding)...');
     
-    const usersRepository = moduleRef.get(UsersRepository);
     const departmentsRepository = moduleRef.get(DepartmentsRepository);
-    const rulesRepository = moduleRef.get(RulesRepository);
-    const enforcer = moduleRef.get<Enforcer>('CASBIN_ENFORCER');
-
-    // Seed in correct order
-    const users = await usersRepository.seed();
-    departments = await departmentsRepository.seed();
-    await rulesRepository.seed(departments);
+    departments = await departmentsRepository.findAll();
     
-    // Clear and seed Casbin policies
-    await enforcer.clearPolicy();
-    await seedPolicies(enforcer, users);
-    
-    console.log('Test database seeded successfully');
+    console.log('Test setup complete (using actual data)');
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  describe('Debug Roles Issue', () => {
+    it('should debug actual seeded data (no reseeding)', async () => {
+      // NOTE: This test uses the ACTUAL seeded data, not test-specific seeding
+      const usersRepository = app.get(UsersRepository);
+      const enforcer = app.get<Enforcer>('CASBIN_ENFORCER');
+
+      // Get all users from actual database
+      const users = await usersRepository.findAll();
+      console.log('=== DEBUG: Users in actual database ===');
+      users.forEach(user => {
+        console.log(`User: ${user.email}, ID: ${user.id}`);
+      });
+
+      // Get all grouping policies from actual Casbin
+      const groupingPolicies = await enforcer.getGroupingPolicy();
+      console.log('\n=== DEBUG: All grouping policies from actual seeded data ===');
+      groupingPolicies.forEach(policy => {
+        console.log(`Policy: [${policy.join(', ')}]`);
+      });
+
+      // Test getRolesForUser for specific users
+      const hrUser = users.find(u => u.email === 'hr.user@example.com');
+      const afUser = users.find(u => u.email === 'af.user@example.com');
+      
+      if (hrUser) {
+        console.log(`\n=== DEBUG: Checking roles for HR user (${hrUser.email}, ID: ${hrUser.id}) ===`);
+        const userPolicies = groupingPolicies.filter(p => p[0] === hrUser.id);
+        console.log('Direct policy matches:', userPolicies);
+        
+        // Also check if any policies use email instead of ID
+        const emailPolicies = groupingPolicies.filter(p => p[0] === hrUser.email);
+        console.log('Email-based policy matches:', emailPolicies);
+      }
+
+      if (afUser) {
+        console.log(`\n=== DEBUG: Checking roles for AF user (${afUser.email}, ID: ${afUser.id}) ===`);
+        const userPolicies = groupingPolicies.filter(p => p[0] === afUser.id);
+        console.log('Direct policy matches:', userPolicies);
+        
+        const emailPolicies = groupingPolicies.filter(p => p[0] === afUser.email);
+        console.log('Email-based policy matches:', emailPolicies);
+      }
+
+      // Test the actual /users API with actual seeded data
+      console.log('\n=== DEBUG: Testing /users API with actual seeded data ===');
+      const response = await request(app.getHttpServer())
+        .get('/users')
+        .set(hrHead)
+        .expect(200);
+
+      console.log('API Response (all users):');
+      response.body.forEach(user => {
+        console.log(`User ${user.email}: roles = ${JSON.stringify(user.roles)}`);
+      });
+
+      // The test should help us identify the issue
+      expect(users.length).toBeGreaterThan(0);
+    });
   });
 
   const getDeptId = (code: string) => {
@@ -630,5 +679,43 @@ describe('E2E - API Tests', () => {
     
     // DRAFT requests should allow submit action
     expect(newRequest.permittedActions).toContain('submit');
+  });
+
+  it('Role Seeding: Verify role assignments are correct and no duplicates', async () => {
+    // Check all user roles for completeness and duplicates
+    const { body: users } = await request(app.getHttpServer())
+      .get('/users')
+      .expect(200);
+
+    const afUser = users.find(u => u.email === 'af.user@example.com');
+    const afHead = users.find(u => u.email === 'af.head@example.com');
+    const hrUser = users.find(u => u.email === 'hr.user@example.com');
+    const hrHead = users.find(u => u.email === 'hr.head@example.com');
+    
+    // Verify AF users have correct roles
+    expect(afUser.roles).toEqual(expect.arrayContaining([
+      { role: 'STAFF', department: 'AF' },
+      { role: 'AF_APPROVER', department: '*' }
+    ]));
+    expect(afUser.roles).toHaveLength(2); // Exactly 2 roles, no duplicates
+    
+    expect(afHead.roles).toEqual(expect.arrayContaining([
+      { role: 'HD', department: 'AF' },
+      { role: 'AF_APPROVER', department: '*' }
+    ]));
+    expect(afHead.roles).toHaveLength(2); // Exactly 2 roles, no duplicates
+    
+    // Verify non-AF users don't have AF_APPROVER role
+    expect(hrUser.roles).toEqual([{ role: 'STAFF', department: 'HR' }]);
+    expect(hrHead.roles).toEqual([{ role: 'HD', department: 'HR' }]);
+    
+    // Check all users for role duplicates
+    for (const user of users) {
+      const roleKeys = user.roles.map(r => `${r.role}-${r.department}`);
+      const uniqueRoleKeys = new Set(roleKeys);
+      expect(roleKeys.length).toBe(uniqueRoleKeys.size); // No duplicates
+    }
+    
+    console.log('Role seeding verification passed - no duplicates found');
   });
 });
