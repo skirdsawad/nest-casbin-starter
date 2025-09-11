@@ -27,6 +27,7 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
   policies.push(['CG', '*', 'requests', 'approve:DEPT_HEAD']);
   policies.push(['CG', '*', 'requests', 'approve:AMD_REVIEW']);
   policies.push(['AMD', '*', 'requests', 'approve:AMD_REVIEW']);
+  policies.push(['AMD', '*', 'requests', 'approve:DEPT_HEAD']); // AMD can approve DEPT_HEAD as fallback
 
   for (const p of policies) {
     await enf.addPolicy(...p);

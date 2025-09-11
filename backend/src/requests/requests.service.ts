@@ -69,7 +69,7 @@ export class RequestsService {
     return reviewableRequests;
   }
 
-  async create(createRequestDto: CreateRequestDto): Promise<RequestEntity> {
+  async create(createRequestDto: CreateRequestDto): Promise<RequestWithActionsDto> {
     const userId = await this.userContext.getUserId();
     const { departmentId, payload } = createRequestDto;
     const deptCode = await this.depts.getCodeById(departmentId);
@@ -89,13 +89,23 @@ export class RequestsService {
       }
     }
 
-    return this.repository.create({
+    const newRequest = await this.repository.create({
       departmentId,
       createdBy: userId,
       payload,
       status: 'DRAFT',
       stageCode: initialStage,
     } as RequestEntity);
+
+    // Add permitted actions for the newly created request
+    const permittedActions: string[] = [];
+    if (newRequest.status === 'DRAFT') {
+      if (await this.casbin.enforce(userId, deptCode, 'requests', 'edit')) {
+        permittedActions.push('submit');
+      }
+    }
+
+    return { ...newRequest, permittedActions };
   }
 
   async findById(id: string): Promise<RequestEntity> {
@@ -106,14 +116,42 @@ export class RequestsService {
     return request;
   }
 
-  async submit(id: string): Promise<RequestEntity> {
+  async submit(id: string): Promise<RequestWithActionsDto> {
     const r = await this.repository.findById(id);
     if (!r) throw new NotFoundException('Request not found');
-    return this.repository.update(id, { status: 'IN_REVIEW' });
+    
+    const updatedRequest = await this.repository.update(id, { status: 'IN_REVIEW' });
+    const userId = await this.userContext.getUserId();
+    const deptCode = await this.depts.getCodeById(updatedRequest.departmentId);
+    
+    // Add permitted actions for the submitted request
+    const permittedActions: string[] = [];
+    if (updatedRequest.status === 'IN_REVIEW') {
+      const action = `approve:${updatedRequest.stageCode}`;
+      if (await this.casbin.enforce(userId, deptCode, 'requests', action)) {
+        permittedActions.push('approve', 'reject');
+      }
+    }
+
+    return { ...updatedRequest, permittedActions };
   }
 
-  async approve(id: string, decision: 'approve' | 'reject'): Promise<RequestEntity> {
-    return this.approvals.approve(id, decision);
+  async approve(id: string, decision: 'approve' | 'reject'): Promise<RequestWithActionsDto> {
+    const approvedRequest = await this.approvals.approve(id, decision);
+    const userId = await this.userContext.getUserId();
+    const deptCode = await this.depts.getCodeById(approvedRequest.departmentId);
+    
+    // Add permitted actions for the approved/rejected request
+    const permittedActions: string[] = [];
+    if (approvedRequest.status === 'IN_REVIEW') {
+      const action = `approve:${approvedRequest.stageCode}`;
+      if (await this.casbin.enforce(userId, deptCode, 'requests', action)) {
+        permittedActions.push('approve', 'reject');
+      }
+    }
+    // APPROVED and REJECTED requests have no permitted actions
+
+    return { ...approvedRequest, permittedActions };
   }
 
   async bulk(ids: string[], action: 'approve' | 'reject'): Promise<RequestEntity[]> {

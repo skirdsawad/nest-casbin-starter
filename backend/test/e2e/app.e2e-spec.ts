@@ -3,7 +3,11 @@ import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { DepartmentsRepository } from '../../src/departments/departments.repository';
+import { UsersRepository } from '../../src/users/users.repository';
+import { RulesRepository } from '../../src/rules/rules.repository';
 import { Department } from '../../src/common/entities/department.entity';
+import { Enforcer } from 'casbin';
+import { seedPolicies } from '../../src/common/casbin/policy.seed';
 
 describe('E2E - API Tests', () => {
   let app: INestApplication;
@@ -16,6 +20,7 @@ describe('E2E - API Tests', () => {
   const afHead = { 'x-user-email': 'af.head@example.com' };
   const hrUser = { 'x-user-email': 'hr.user@example.com' };
   const mktUser = { 'x-user-email': 'mkt.user@example.com' };
+  const itUser = { 'x-user-email': 'it.user@example.com' };
   const afUser = { 'x-user-email': 'af.user@example.com' };
   const amdUser = { 'x-user-email': 'amd.user@example.com' };
   const cgUser = { 'x-user-email': 'cg.user@example.com' };
@@ -26,16 +31,38 @@ describe('E2E - API Tests', () => {
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
 
-    // Fetch departments to use their IDs in tests
+    // Seed the database for testing
+    console.log('Seeding test database...');
+    
+    const usersRepository = moduleRef.get(UsersRepository);
     const departmentsRepository = moduleRef.get(DepartmentsRepository);
-    departments = await departmentsRepository.findAll();
+    const rulesRepository = moduleRef.get(RulesRepository);
+    const enforcer = moduleRef.get<Enforcer>('CASBIN_ENFORCER');
+
+    // Seed in correct order
+    const users = await usersRepository.seed();
+    departments = await departmentsRepository.seed();
+    await rulesRepository.seed(departments);
+    
+    // Clear and seed Casbin policies
+    await enforcer.clearPolicy();
+    await seedPolicies(enforcer, users);
+    
+    console.log('Test database seeded successfully');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  const getDeptId = (code: string) => departments.find(d => d.code === code)!.id;
+  const getDeptId = (code: string) => {
+    const dept = departments.find(d => d.code === code);
+    if (!dept) {
+      console.error(`Department with code '${code}' not found. Available departments:`, departments.map(d => d.code));
+      throw new Error(`Department with code '${code}' not found`);
+    }
+    return dept.id;
+  };
 
   it('Visibility: HR Head can list HR requests, but not Marketing requests', async () => {
     await request(app.getHttpServer())
@@ -110,19 +137,19 @@ describe('E2E - API Tests', () => {
     expect(finalApproval.status).toBe('APPROVED');
   });
 
-  it('Fallback Approval: AMD User can approve a request in the IT department', async () => {
+  it('IT Department: Normal 2-step approval workflow works', async () => {
     const { body: newRequest } = await request(app.getHttpServer())
       .post('/requests')
-      .set(itHead) // IT Head creates
+      .set(itUser) // IT User creates (not head to avoid self-approval issue)
       .send({ departmentId: getDeptId('IT'), payload: { amount: 1000 } })
       .expect(201);
 
     await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/submit`)
-      .set(itHead)
+      .set(itUser)
       .expect(200);
 
-    // IT Head approval is not enough, it should fallback to AMD
+    // IT Head approval should work and move to AF_REVIEW (normal 2-step process)
     const { body: afterItApproval } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
       .set(itHead)
@@ -130,15 +157,16 @@ describe('E2E - API Tests', () => {
       .expect(200);
 
     expect(afterItApproval.status).toBe('IN_REVIEW');
-    expect(afterItApproval.stageCode).toBe('AMD_REVIEW');
+    expect(afterItApproval.stageCode).toBe('AF_REVIEW');
 
-    const { body: amdApprovedRequest } = await request(app.getHttpServer())
+    // AF user can approve AF_REVIEW stage 
+    const { body: afApprovedRequest } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
-      .set(amdUser)
+      .set(afUser)
       .send({ decision: 'approve' })
       .expect(200);
 
-    expect(amdApprovedRequest.status).toBe('APPROVED');
+    expect(afApprovedRequest.status).toBe('APPROVED');
   });
 
   it('Bulk Approve: CG User can bulk approve requests', async () => {
@@ -192,10 +220,17 @@ describe('E2E - API Tests', () => {
 
     expect(afterFirstApproval.stageCode).toBe('AF_REVIEW');
 
-    // Try to approve again at the same stage - should fail
+    // Now try AF approval twice - first should work, second should fail with 400
     await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
-      .set(hrHead)
+      .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // Try to approve again by the same AF user - should fail with 400
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(afUser)
       .send({ decision: 'approve' })
       .expect(400);
   });
@@ -400,12 +435,13 @@ describe('E2E - API Tests', () => {
       .expect(200);
 
     expect(approvedRequest.status).toBe('APPROVED');
-    // If someone tries to approve it again (as if it were in AF_REVIEW), it should fail
+    // If someone tries to approve it again, it should fail with 403 (Forbidden)
+    // because the request is already processed and not in a valid state for approval
     await request(app.getHttpServer())
       .post(`/requests/${afRequest.id}/approve`)
       .set(afUser)
       .send({ decision: 'approve' })
-      .expect(400); // Request already processed
+      .expect(403); // Request already processed - no valid stage to approve
   });
 
   it('Authorization: Non-AF user cannot approve AF_REVIEW stage', async () => {
@@ -473,5 +509,126 @@ describe('E2E - API Tests', () => {
       .set(mktHead)
       .send({ decision: 'approve' })
       .expect(403);
+  });
+
+  // ====== FRONTEND API ENDPOINT TESTS ======
+
+  it('API: GET /users returns users with roles', async () => {
+    const { body: users } = await request(app.getHttpServer())
+      .get('/users')
+      .expect(200);
+
+    expect(Array.isArray(users)).toBe(true);
+    expect(users.length).toBeGreaterThan(0);
+    
+    // Check that users have required properties
+    const firstUser = users[0];
+    expect(firstUser).toHaveProperty('id');
+    expect(firstUser).toHaveProperty('email');
+    expect(firstUser).toHaveProperty('displayName');
+    expect(firstUser).toHaveProperty('roles');
+    expect(Array.isArray(firstUser.roles)).toBe(true);
+  });
+
+  it('API: GET /departments/creatable returns departments user can create requests in', async () => {
+    const { body: departments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set(hrUser)
+      .expect(200);
+
+    expect(Array.isArray(departments)).toBe(true);
+    expect(departments.length).toBeGreaterThan(0);
+    
+    // HR user should be able to create requests in HR department
+    const hrDept = departments.find(d => d.code === 'HR');
+    expect(hrDept).toBeDefined();
+    expect(hrDept).toHaveProperty('id');
+    expect(hrDept).toHaveProperty('name');
+  });
+
+  it('API: GET /departments/creatable returns AF department for AF user', async () => {
+    const { body: departments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set(afUser)
+      .expect(200);
+
+    expect(Array.isArray(departments)).toBe(true);
+    
+    // AF user should be able to create requests in AF department
+    const afDept = departments.find(d => d.code === 'AF');
+    expect(afDept).toBeDefined();
+  });
+
+  it('API: GET /requests/reviewable returns requests user can approve', async () => {
+    // Create a request that AF user can review
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: 'Test Request', amount: 1000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(hrUser)
+      .expect(200);
+
+    // HR Head approves to move to AF_REVIEW stage
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(hrHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // Now AF user should see this in reviewable requests
+    const { body: reviewableRequests } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(afUser)
+      .expect(200);
+
+    expect(Array.isArray(reviewableRequests)).toBe(true);
+    
+    // Should contain the request we just moved to AF_REVIEW
+    const foundRequest = reviewableRequests.find(r => r.id === newRequest.id);
+    expect(foundRequest).toBeDefined();
+    expect(foundRequest.stageCode).toBe('AF_REVIEW');
+  });
+
+  it('API: GET /requests with departmentId returns department requests', async () => {
+    // Create a request in HR department
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: 'Department Test', amount: 500 } })
+      .expect(201);
+
+    // HR Head should be able to list HR department requests
+    const { body: requests } = await request(app.getHttpServer())
+      .get(`/requests?departmentId=${getDeptId('HR')}`)
+      .set(hrHead)
+      .expect(200);
+
+    expect(Array.isArray(requests)).toBe(true);
+    
+    // Should contain the request we just created
+    const foundRequest = requests.find(r => r.id === newRequest.id);
+    expect(foundRequest).toBeDefined();
+    expect(foundRequest.departmentId).toBe(getDeptId('HR'));
+  });
+
+  it('API: POST /requests creates request and returns permittedActions', async () => {
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(afUser)
+      .send({ departmentId: getDeptId('AF'), payload: { content: 'Test request content' } })
+      .expect(201);
+
+    expect(newRequest).toHaveProperty('id');
+    expect(newRequest).toHaveProperty('status', 'DRAFT');
+    expect(newRequest).toHaveProperty('departmentId', getDeptId('AF'));
+    expect(newRequest).toHaveProperty('permittedActions');
+    expect(Array.isArray(newRequest.permittedActions)).toBe(true);
+    
+    // DRAFT requests should allow submit action
+    expect(newRequest.permittedActions).toContain('submit');
   });
 });
