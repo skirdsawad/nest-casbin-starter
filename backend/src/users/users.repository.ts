@@ -30,11 +30,16 @@ export class UsersRepository {
       { email: 'mkt.head@example.com', displayName: 'Marketing Head' },
       { email: 'it.head@example.com', displayName: 'IT Head' },
       { email: 'sp.head@example.com', displayName: 'Strategic Planning Head' },
+      { email: 'af.head@example.com', displayName: 'AF Head' },
       // Department Staff (creators/editors)
       { email: 'hr.user@example.com', displayName: 'HR User' },
       { email: 'mkt.user@example.com', displayName: 'Marketing User' },
       { email: 'it.user@example.com', displayName: 'IT User' },
+      { email: 'sp.user@example.com', displayName: 'SP User' },
       { email: 'af.user@example.com', displayName: 'AF User' },
+      // Additional staff for testing
+      { email: 'hr.staff2@example.com', displayName: 'HR Staff 2' },
+      { email: 'mkt.staff2@example.com', displayName: 'Marketing Staff 2' },
       // Global Roles
       { email: 'amd.user@example.com', displayName: 'AMD User' },
       { email: 'cg.user@example.com', displayName: 'CG User' },

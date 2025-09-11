@@ -34,12 +34,11 @@ export class RulesRepository {
       { deptCode: 'SP', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: 'AMD' },
       { deptCode: 'AF', stageCode: 'DEPT_HEAD', minApprovers: 1, fallbackRole: null },
 
-      // All departments require 1 AF approval after the HD stage
+      // All departments except AF require 1 AF approval after the HD stage
       { deptCode: 'HR', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
       { deptCode: 'MKT', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
       { deptCode: 'IT', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
       { deptCode: 'SP', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
-      { deptCode: 'AF', stageCode: 'AF_REVIEW', minApprovers: 1, fallbackRole: null },
     ];
 
     for (const ruleData of rulesData) {

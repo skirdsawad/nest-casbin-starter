@@ -1,5 +1,5 @@
 
-export type RoleCode = 'HD' | 'AF' | 'EXEC' | 'AMD' | 'CG' | 'ADMIN';
+export type RoleCode = 'HD' | 'STAFF' | 'EXEC' | 'AMD' | 'CG' | 'ADMIN' | 'AF_APPROVER';
 
 export interface User {
   id: string;

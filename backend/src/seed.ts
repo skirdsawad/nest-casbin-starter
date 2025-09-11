@@ -5,6 +5,8 @@ import { seedPolicies } from './common/casbin/policy.seed';
 import { DepartmentsRepository } from './departments/departments.repository';
 import { RulesRepository } from './rules/rules.repository';
 import { UsersRepository } from './users/users.repository';
+import { RequestsRepository } from './requests/requests.repository';
+import { ApprovalsRepository } from './approvals/approvals.repository';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -25,6 +27,14 @@ async function bootstrap() {
   const enforcer = app.get<Enforcer>('CASBIN_ENFORCER');
   await enforcer.clearPolicy();
   await seedPolicies(enforcer, users);
+
+  console.log('Seeding requests...');
+  const requestsRepository = app.get(RequestsRepository);
+  const requests = await requestsRepository.seed(users, departments);
+
+  console.log('Seeding approvals...');
+  const approvalsRepository = app.get(ApprovalsRepository);
+  await approvalsRepository.seed(requests, users);
 
   await app.close();
   console.log('Seeding complete.');

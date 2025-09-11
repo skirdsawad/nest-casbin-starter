@@ -82,6 +82,11 @@ export class ApprovalsService {
 
   private async determineNextStage(departmentId: string, currentStage: string): Promise<string | null> {
     if (currentStage === 'DEPT_HEAD') {
+      // AF department requests don't need AF_REVIEW (they end after HD approval)
+      const deptCode = await this.depts.getCodeById(departmentId);
+      if (deptCode === 'AF') {
+        return null; // AF requests end after DEPT_HEAD approval
+      }
       return 'AF_REVIEW';
     }
     // After AF_REVIEW, the process is finished

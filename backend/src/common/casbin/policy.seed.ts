@@ -18,8 +18,8 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     policies.push(['STAFF', dept, 'requests', 'edit']);
   }
 
-  // AF role can approve at the AF_REVIEW stage in any department
-  policies.push(['AF', '*', 'requests', 'approve:AF_REVIEW']);
+  // AF_APPROVER role can approve AF_REVIEW stage for any department
+  policies.push(['AF_APPROVER', '*', 'requests', 'approve:AF_REVIEW']);
 
   // Global policies for CG and AMD
   policies.push(['CG', '*', 'requests', 'view']);
@@ -42,7 +42,12 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     'hr.user@example.com': { role: 'STAFF', domain: 'HR' },
     'mkt.user@example.com': { role: 'STAFF', domain: 'MKT' },
     'it.user@example.com': { role: 'STAFF', domain: 'IT' },
-    'af.user@example.com': { role: 'AF', domain: '*' }, // This user is now a global AF approver
+    'sp.user@example.com': { role: 'STAFF', domain: 'SP' },
+    'af.user@example.com': { role: 'STAFF', domain: 'AF' }, // AF staff
+    'af.head@example.com': { role: 'HD', domain: 'AF' }, // AF head
+    // Additional staff
+    'hr.staff2@example.com': { role: 'STAFF', domain: 'HR' },
+    'mkt.staff2@example.com': { role: 'STAFF', domain: 'MKT' },
     // Global Roles
     'amd.user@example.com': { role: 'AMD', domain: '*' },
     'cg.user@example.com': { role: 'CG', domain: '*' },
@@ -52,6 +57,11 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
     const roleInfo = userRoles[user.email];
     if (roleInfo) {
       await enf.addRoleForUser(user.id, roleInfo.role, roleInfo.domain);
+    }
+    
+    // AF staff and head also get global AF_APPROVER role for cross-department AF_REVIEW approvals
+    if (user.email === 'af.user@example.com' || user.email === 'af.head@example.com') {
+      await enf.addRoleForUser(user.id, 'AF_APPROVER', '*');
     }
   }
 }
