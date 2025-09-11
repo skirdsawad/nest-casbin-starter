@@ -31,78 +31,30 @@ describe('E2E - API Tests', () => {
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
 
-    // Use ACTUAL seeded data, don't reseed for the debug test
-    console.log('Using actual seeded database (no reseeding)...');
+    // Seed the database for testing
+    console.log('Seeding test database...');
     
+    const usersRepository = moduleRef.get(UsersRepository);
     const departmentsRepository = moduleRef.get(DepartmentsRepository);
-    departments = await departmentsRepository.findAll();
+    const rulesRepository = moduleRef.get(RulesRepository);
+    const enforcer = moduleRef.get<Enforcer>('CASBIN_ENFORCER');
+
+    // Seed in correct order
+    const users = await usersRepository.seed();
+    departments = await departmentsRepository.seed();
+    await rulesRepository.seed(departments);
     
-    console.log('Test setup complete (using actual data)');
+    // Clear and seed Casbin policies
+    await enforcer.clearPolicy();
+    await seedPolicies(enforcer, users);
+    
+    console.log('Test database seeded successfully');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  describe('Debug Roles Issue', () => {
-    it('should debug actual seeded data (no reseeding)', async () => {
-      // NOTE: This test uses the ACTUAL seeded data, not test-specific seeding
-      const usersRepository = app.get(UsersRepository);
-      const enforcer = app.get<Enforcer>('CASBIN_ENFORCER');
-
-      // Get all users from actual database
-      const users = await usersRepository.findAll();
-      console.log('=== DEBUG: Users in actual database ===');
-      users.forEach(user => {
-        console.log(`User: ${user.email}, ID: ${user.id}`);
-      });
-
-      // Get all grouping policies from actual Casbin
-      const groupingPolicies = await enforcer.getGroupingPolicy();
-      console.log('\n=== DEBUG: All grouping policies from actual seeded data ===');
-      groupingPolicies.forEach(policy => {
-        console.log(`Policy: [${policy.join(', ')}]`);
-      });
-
-      // Test getRolesForUser for specific users
-      const hrUser = users.find(u => u.email === 'hr.user@example.com');
-      const afUser = users.find(u => u.email === 'af.user@example.com');
-      
-      if (hrUser) {
-        console.log(`\n=== DEBUG: Checking roles for HR user (${hrUser.email}, ID: ${hrUser.id}) ===`);
-        const userPolicies = groupingPolicies.filter(p => p[0] === hrUser.id);
-        console.log('Direct policy matches:', userPolicies);
-        
-        // Also check if any policies use email instead of ID
-        const emailPolicies = groupingPolicies.filter(p => p[0] === hrUser.email);
-        console.log('Email-based policy matches:', emailPolicies);
-      }
-
-      if (afUser) {
-        console.log(`\n=== DEBUG: Checking roles for AF user (${afUser.email}, ID: ${afUser.id}) ===`);
-        const userPolicies = groupingPolicies.filter(p => p[0] === afUser.id);
-        console.log('Direct policy matches:', userPolicies);
-        
-        const emailPolicies = groupingPolicies.filter(p => p[0] === afUser.email);
-        console.log('Email-based policy matches:', emailPolicies);
-      }
-
-      // Test the actual /users API with actual seeded data
-      console.log('\n=== DEBUG: Testing /users API with actual seeded data ===');
-      const response = await request(app.getHttpServer())
-        .get('/users')
-        .set(hrHead)
-        .expect(200);
-
-      console.log('API Response (all users):');
-      response.body.forEach(user => {
-        console.log(`User ${user.email}: roles = ${JSON.stringify(user.roles)}`);
-      });
-
-      // The test should help us identify the issue
-      expect(users.length).toBeGreaterThan(0);
-    });
-  });
 
   const getDeptId = (code: string) => {
     const dept = departments.find(d => d.code === code);
@@ -579,6 +531,31 @@ describe('E2E - API Tests', () => {
     expect(Array.isArray(firstUser.roles)).toBe(true);
   });
 
+  it('API: GET /users returns specific user roles correctly', async () => {
+    const { body: users } = await request(app.getHttpServer())
+      .get('/users')
+      .expect(200);
+
+    // Find HR Head user
+    const hrHeadUser = users.find(u => u.email === 'hr.head@example.com');
+    expect(hrHeadUser).toBeDefined();
+    expect(hrHeadUser.roles).toHaveLength(1);
+    expect(hrHeadUser.roles[0]).toEqual({ role: 'HD', department: 'HR' });
+
+    // Find AF user (should have both STAFF and AF_APPROVER roles)
+    const afUserData = users.find(u => u.email === 'af.user@example.com');
+    expect(afUserData).toBeDefined();
+    expect(afUserData.roles).toHaveLength(2);
+    expect(afUserData.roles).toContainEqual({ role: 'STAFF', department: 'AF' });
+    expect(afUserData.roles).toContainEqual({ role: 'AF_APPROVER', department: '*' });
+
+    // Find AMD user (global role)
+    const amdUser = users.find(u => u.email === 'amd.user@example.com');
+    expect(amdUser).toBeDefined();
+    expect(amdUser.roles).toHaveLength(1);
+    expect(amdUser.roles[0]).toEqual({ role: 'AMD', department: '*' });
+  });
+
   it('API: GET /departments/creatable returns departments user can create requests in', async () => {
     const { body: departments } = await request(app.getHttpServer())
       .get('/departments/creatable')
@@ -593,6 +570,8 @@ describe('E2E - API Tests', () => {
     expect(hrDept).toBeDefined();
     expect(hrDept).toHaveProperty('id');
     expect(hrDept).toHaveProperty('name');
+    expect(hrDept).toHaveProperty('code');
+    expect(hrDept.code).toBe('HR');
   });
 
   it('API: GET /departments/creatable returns AF department for AF user', async () => {
@@ -606,6 +585,56 @@ describe('E2E - API Tests', () => {
     // AF user should be able to create requests in AF department
     const afDept = departments.find(d => d.code === 'AF');
     expect(afDept).toBeDefined();
+    expect(afDept.code).toBe('AF');
+  });
+
+  it('API: GET /departments/creatable restrictions by role', async () => {
+    // HR User can only create in HR department
+    const { body: hrDepartments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set(hrUser)
+      .expect(200);
+
+    expect(hrDepartments).toHaveLength(1);
+    expect(hrDepartments[0].code).toBe('HR');
+
+    // Marketing User can only create in Marketing department  
+    const { body: mktDepartments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set({ 'x-user-email': 'mkt.user@example.com' })
+      .expect(200);
+
+    expect(mktDepartments).toHaveLength(1);
+    expect(mktDepartments[0].code).toBe('MKT');
+
+    // IT Head can create in IT department
+    const { body: itDepartments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set({ 'x-user-email': 'it.head@example.com' })
+      .expect(200);
+
+    expect(itDepartments).toHaveLength(1);
+    expect(itDepartments[0].code).toBe('IT');
+  });
+
+  it('API: GET /departments/creatable for global roles', async () => {
+    // CG user doesn't have create permissions, should return empty
+    const { body: cgDepartments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set(cgUser)
+      .expect(200);
+
+    expect(Array.isArray(cgDepartments)).toBe(true);
+    expect(cgDepartments.length).toBe(0); // CG has no create permissions
+    
+    // AMD user also doesn't have create permissions  
+    const { body: amdDepartments } = await request(app.getHttpServer())
+      .get('/departments/creatable')
+      .set(amdUser)
+      .expect(200);
+
+    expect(Array.isArray(amdDepartments)).toBe(true);
+    expect(amdDepartments.length).toBe(0); // AMD has no create permissions
   });
 
   it('API: GET /requests/reviewable returns requests user can approve', async () => {
@@ -640,6 +669,130 @@ describe('E2E - API Tests', () => {
     const foundRequest = reviewableRequests.find(r => r.id === newRequest.id);
     expect(foundRequest).toBeDefined();
     expect(foundRequest.stageCode).toBe('AF_REVIEW');
+  });
+
+  it('API: GET /requests/reviewable department head permissions', async () => {
+    // Create a request in HR department
+    const { body: hrRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: 'HR Head Test', amount: 2000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${hrRequest.id}/submit`)
+      .set(hrUser)
+      .expect(200);
+
+    // HR Head should see this request in reviewable (DEPT_HEAD stage)
+    const { body: hrHeadReviewable } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(hrHead)
+      .expect(200);
+
+    const foundHrRequest = hrHeadReviewable.find(r => r.id === hrRequest.id);
+    expect(foundHrRequest).toBeDefined();
+    expect(foundHrRequest.stageCode).toBe('DEPT_HEAD');
+
+    // Marketing Head should NOT see HR requests
+    const { body: mktHeadReviewable } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(mktHead)
+      .expect(200);
+
+    const shouldNotExist = mktHeadReviewable.find(r => r.id === hrRequest.id);
+    expect(shouldNotExist).toBeUndefined();
+  });
+
+  it('API: GET /requests/reviewable AF approval workflow', async () => {
+    // Create requests in different departments to test AF approval
+    const { body: mktRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set({ 'x-user-email': 'mkt.user@example.com' })
+      .send({ departmentId: getDeptId('MKT'), payload: { type: 'Marketing AF Test', amount: 3000 } })
+      .expect(201);
+
+    const { body: itRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set({ 'x-user-email': 'it.user@example.com' })
+      .send({ departmentId: getDeptId('IT'), payload: { type: 'IT AF Test', amount: 4000 } })
+      .expect(201);
+
+    // Submit both requests
+    await request(app.getHttpServer())
+      .post(`/requests/${mktRequest.id}/submit`)
+      .set({ 'x-user-email': 'mkt.user@example.com' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${itRequest.id}/submit`)
+      .set({ 'x-user-email': 'it.user@example.com' })
+      .expect(200);
+
+    // Department heads approve to move to AF_REVIEW stage
+    await request(app.getHttpServer())
+      .post(`/requests/${mktRequest.id}/approve`)
+      .set(mktHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${itRequest.id}/approve`)
+      .set({ 'x-user-email': 'it.head@example.com' })
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // AF user should see both requests in reviewable (AF_REVIEW stage)
+    const { body: afReviewable } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(afUser)
+      .expect(200);
+
+    const foundMktRequest = afReviewable.find(r => r.id === mktRequest.id);
+    const foundItRequest = afReviewable.find(r => r.id === itRequest.id);
+    
+    expect(foundMktRequest).toBeDefined();
+    expect(foundMktRequest.stageCode).toBe('AF_REVIEW');
+    expect(foundItRequest).toBeDefined();
+    expect(foundItRequest.stageCode).toBe('AF_REVIEW');
+  });
+
+  it('API: GET /requests/reviewable returns proper request structure', async () => {
+    // Create and submit a request
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: 'Structure Test', description: 'Check response structure' } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(hrUser)
+      .expect(200);
+
+    // Get reviewable requests for HR Head
+    const { body: reviewableRequests } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(hrHead)
+      .expect(200);
+
+    expect(Array.isArray(reviewableRequests)).toBe(true);
+    
+    const foundRequest = reviewableRequests.find(r => r.id === newRequest.id);
+    expect(foundRequest).toBeDefined();
+    
+    // Check request has proper structure with permittedActions
+    expect(foundRequest).toHaveProperty('id');
+    expect(foundRequest).toHaveProperty('departmentId');
+    expect(foundRequest).toHaveProperty('createdBy');
+    expect(foundRequest).toHaveProperty('status');
+    expect(foundRequest).toHaveProperty('stageCode');
+    expect(foundRequest).toHaveProperty('payload');
+    expect(foundRequest).toHaveProperty('permittedActions');
+    expect(Array.isArray(foundRequest.permittedActions)).toBe(true);
+    
+    // HR Head should be able to approve this request
+    expect(foundRequest.permittedActions).toContain('approve');
   });
 
   it('API: GET /requests with departmentId returns department requests', async () => {
