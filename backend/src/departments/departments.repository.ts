@@ -30,6 +30,7 @@ export class DepartmentsRepository {
       { code: 'IT', name: 'IT' },
       { code: 'SP', name: 'Strategic&Planning' },
       { code: 'AF', name: 'Accounting&Financial' },
+      { code: 'CG', name: 'Corporate Strategy' },
     ];
 
     const seededDepts: Department[] = [];

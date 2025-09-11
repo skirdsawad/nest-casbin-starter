@@ -81,18 +81,30 @@ export class ApprovalsService {
   }
 
   private async determineNextStage(departmentId: string, currentStage: string): Promise<string | null> {
+    const deptCode = await this.depts.getCodeById(departmentId);
+    
     if (currentStage === 'DEPT_HEAD') {
-      // AF department requests don't need AF_REVIEW (they end after HD approval)
-      const deptCode = await this.depts.getCodeById(departmentId);
-      if (deptCode === 'AF') {
-        return null; // AF requests end after DEPT_HEAD approval
+      // AF and CG department requests have 1-step approval (end after HD approval)
+      if (deptCode === 'AF' || deptCode === 'CG') {
+        return null; // AF and CG requests end after DEPT_HEAD approval
       }
+      // All other departments go to AF_REVIEW
       return 'AF_REVIEW';
     }
-    // After AF_REVIEW, the process is finished
+    
     if (currentStage === 'AF_REVIEW') {
+      // After AF_REVIEW, non-AF requests go to CG_REVIEW
+      if (deptCode !== 'AF') {
+        return 'CG_REVIEW';
+      }
       return null;
     }
+    
+    if (currentStage === 'CG_REVIEW') {
+      // After CG_REVIEW, the process is finished
+      return null;
+    }
+    
     return null;
   }
 }

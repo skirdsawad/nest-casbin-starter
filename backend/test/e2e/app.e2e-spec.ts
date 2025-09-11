@@ -18,12 +18,13 @@ describe('E2E - API Tests', () => {
   const mktHead = { 'x-user-email': 'mkt.head@example.com' };
   const itHead = { 'x-user-email': 'it.head@example.com' };
   const afHead = { 'x-user-email': 'af.head@example.com' };
+  const cgHead = { 'x-user-email': 'cg.head@example.com' };
   const hrUser = { 'x-user-email': 'hr.user@example.com' };
   const mktUser = { 'x-user-email': 'mkt.user@example.com' };
   const itUser = { 'x-user-email': 'it.user@example.com' };
   const afUser = { 'x-user-email': 'af.user@example.com' };
-  const amdUser = { 'x-user-email': 'amd.user@example.com' };
   const cgUser = { 'x-user-email': 'cg.user@example.com' };
+  const amdUser = { 'x-user-email': 'amd.user@example.com' };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -106,7 +107,7 @@ describe('E2E - API Tests', () => {
       .expect(200);
   });
 
-  it('2-Step Approval: HR request goes through HD then AF approval', async () => {
+  it('3-Step Approval: HR request goes through HD then AF then CG approval (legacy test)', async () => {
     const { body: newRequest } = await request(app.getHttpServer())
       .post('/requests')
       .set(hrUser)
@@ -128,10 +129,20 @@ describe('E2E - API Tests', () => {
     expect(afterHDApproval.status).toBe('IN_REVIEW');
     expect(afterHDApproval.stageCode).toBe('AF_REVIEW');
 
-    // Step 2: AF approval completes the process
-    const { body: finalApproval } = await request(app.getHttpServer())
+    // Step 2: AF approval moves to CG_REVIEW stage
+    const { body: afterAFApproval } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
       .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(afterAFApproval.status).toBe('IN_REVIEW');
+    expect(afterAFApproval.stageCode).toBe('CG_REVIEW');
+
+    // Step 3: CG approval completes the process
+    const { body: finalApproval } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
       .send({ decision: 'approve' })
       .expect(200);
 
@@ -160,17 +171,27 @@ describe('E2E - API Tests', () => {
     expect(afterItApproval.status).toBe('IN_REVIEW');
     expect(afterItApproval.stageCode).toBe('AF_REVIEW');
 
-    // AF user can approve AF_REVIEW stage 
+    // AF user can approve AF_REVIEW stage - moves to CG_REVIEW
     const { body: afApprovedRequest } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
       .set(afUser)
       .send({ decision: 'approve' })
       .expect(200);
 
-    expect(afApprovedRequest.status).toBe('APPROVED');
+    expect(afApprovedRequest.status).toBe('IN_REVIEW');
+    expect(afApprovedRequest.stageCode).toBe('CG_REVIEW');
+
+    // CG approval completes the process
+    const { body: finalApproval } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(finalApproval.status).toBe('APPROVED');
   });
 
-  it('Bulk Approve: CG User can bulk approve requests', async () => {
+  it('Bulk Approve: AMD User can bulk approve requests', async () => {
     const requestIds = [];
     for (let i = 0; i < 2; i++) {
       const { body: newRequest } = await request(app.getHttpServer())
@@ -187,7 +208,7 @@ describe('E2E - API Tests', () => {
 
     await request(app.getHttpServer())
       .post('/requests/bulk')
-      .set(cgUser)
+      .set(amdUser)
       .send({ ids: requestIds, action: 'approve' })
       .expect(200);
   });
@@ -221,17 +242,26 @@ describe('E2E - API Tests', () => {
 
     expect(afterFirstApproval.stageCode).toBe('AF_REVIEW');
 
-    // Now try AF approval twice - first should work, second should fail with 400
-    await request(app.getHttpServer())
+    // AF approval moves to CG_REVIEW stage
+    const { body: afterAfApproval } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
       .set(afUser)
       .send({ decision: 'approve' })
       .expect(200);
 
-    // Try to approve again by the same AF user - should fail with 400
+    expect(afterAfApproval.stageCode).toBe('CG_REVIEW');
+
+    // CG user approves
     await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
-      .set(afUser)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // Try to approve again by CG user after final approval - should fail with 400
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
       .send({ decision: 'approve' })
       .expect(400);
   });
@@ -297,7 +327,7 @@ describe('E2E - API Tests', () => {
 
   // ====== NON-AF DEPARTMENT 2-STEP APPROVAL TESTS ======
 
-  it('2-Step Approval: Marketing request goes through MKT Head then AF approval', async () => {
+  it('3-Step Approval: Marketing request goes through MKT Head then AF then CG approval', async () => {
     const { body: newRequest } = await request(app.getHttpServer())
       .post('/requests')
       .set(mktUser)
@@ -320,9 +350,19 @@ describe('E2E - API Tests', () => {
     expect(afterMktApproval.stageCode).toBe('AF_REVIEW');
 
     // Step 2: AF Head approval
-    const { body: finalApproval } = await request(app.getHttpServer())
+    const { body: afterAfApproval } = await request(app.getHttpServer())
       .post(`/requests/${newRequest.id}/approve`)
       .set(afHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(afterAfApproval.status).toBe('IN_REVIEW');
+    expect(afterAfApproval.stageCode).toBe('CG_REVIEW');
+
+    // Step 3: CG approval
+    const { body: finalApproval } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
       .send({ decision: 'approve' })
       .expect(200);
 
@@ -351,10 +391,20 @@ describe('E2E - API Tests', () => {
 
     expect(afterHRApproval.stageCode).toBe('AF_REVIEW');
 
-    // AF user (not head) can also approve AF_REVIEW stage
-    const { body: finalApproval } = await request(app.getHttpServer())
+    // AF user (not head) can also approve AF_REVIEW stage - moves to CG_REVIEW
+    const { body: afterAFApproval } = await request(app.getHttpServer())
       .post(`/requests/${hrRequest.id}/approve`)
       .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(afterAFApproval.status).toBe('IN_REVIEW');
+    expect(afterAFApproval.stageCode).toBe('CG_REVIEW');
+
+    // CG approval completes the process
+    const { body: finalApproval } = await request(app.getHttpServer())
+      .post(`/requests/${hrRequest.id}/approve`)
+      .set(cgUser)
       .send({ decision: 'approve' })
       .expect(200);
 
@@ -617,17 +667,18 @@ describe('E2E - API Tests', () => {
     expect(itDepartments[0].code).toBe('IT');
   });
 
-  it('API: GET /departments/creatable for global roles', async () => {
-    // CG user doesn't have create permissions, should return empty
+  it('API: GET /departments/creatable for CG department', async () => {
+    // CG user can create in CG department
     const { body: cgDepartments } = await request(app.getHttpServer())
       .get('/departments/creatable')
       .set(cgUser)
       .expect(200);
 
     expect(Array.isArray(cgDepartments)).toBe(true);
-    expect(cgDepartments.length).toBe(0); // CG has no create permissions
+    expect(cgDepartments.length).toBe(1);
+    expect(cgDepartments[0].code).toBe('CG');
     
-    // AMD user also doesn't have create permissions  
+    // AMD user has no create permissions  
     const { body: amdDepartments } = await request(app.getHttpServer())
       .get('/departments/creatable')
       .set(amdUser)
@@ -832,6 +883,168 @@ describe('E2E - API Tests', () => {
     
     // DRAFT requests should allow submit action
     expect(newRequest.permittedActions).toContain('submit');
+  });
+
+  // ====== 3-STEP APPROVAL WORKFLOW TESTS ======
+
+  it('3-Step Approval: HR request goes through HD -> AF -> CG approval', async () => {
+    // Create request in HR department
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: '3-Step Test', amount: 50000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(hrUser)
+      .expect(200);
+
+    // Step 1: HR Head approves (DEPT_HEAD stage)
+    let { body: updatedRequest } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(hrHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(updatedRequest.status).toBe('IN_REVIEW');
+    expect(updatedRequest.stageCode).toBe('AF_REVIEW');
+
+    // Step 2: AF user approves (AF_REVIEW stage)
+    ({ body: updatedRequest } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200));
+
+    expect(updatedRequest.status).toBe('IN_REVIEW');
+    expect(updatedRequest.stageCode).toBe('CG_REVIEW');
+
+    // Step 3: CG user approves (CG_REVIEW stage) - final approval
+    ({ body: updatedRequest } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200));
+
+    expect(updatedRequest.status).toBe('APPROVED');
+    expect(updatedRequest.stageCode).toBe('CG_REVIEW'); // Stays at final stage
+  });
+
+  it('1-Step Approval: CG department request approved by CG Head only', async () => {
+    // Create request in CG department
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(cgUser)
+      .send({ departmentId: getDeptId('CG'), payload: { type: 'CG Internal', description: 'Strategy review' } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(cgUser)
+      .expect(200);
+
+    // CG Head approves and request is immediately APPROVED (1-step)
+    const { body: updatedRequest } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(updatedRequest.status).toBe('APPROVED');
+    expect(updatedRequest.stageCode).toBe('DEPT_HEAD'); // Ends at department head stage
+  });
+
+  it('3-Step Approval: CG user can approve requests from other departments at CG_REVIEW', async () => {
+    // Create request in Marketing department
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(mktUser)
+      .send({ departmentId: getDeptId('MKT'), payload: { type: 'CG Review Test', amount: 100000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(mktUser)
+      .expect(200);
+
+    // MKT Head approves
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(mktHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // AF user approves
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // CG user can approve CG_REVIEW stage for cross-department requests
+    const { body: updatedRequest } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(updatedRequest.status).toBe('APPROVED');
+  });
+
+  it('Authorization: CG user cannot approve requests in their own department at CG_REVIEW stage', async () => {
+    // This is similar to AF constraint - department users can't approve their own dept at their special approval stage
+    // Create request in another department and move it to CG_REVIEW
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(itUser)
+      .send({ departmentId: getDeptId('IT'), payload: { type: 'IT CG Test', amount: 75000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(itUser)
+      .expect(200);
+
+    // IT Head and AF approve to get to CG_REVIEW
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(itHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // CG user should be able to approve this (it's not from CG department)
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+  });
+
+  it('API: GET /users returns CG user roles correctly', async () => {
+    const { body: users } = await request(app.getHttpServer())
+      .get('/users')
+      .expect(200);
+
+    // Find CG user (should have both STAFF and CG_APPROVER roles)
+    const cgUserData = users.find(u => u.email === 'cg.user@example.com');
+    expect(cgUserData).toBeDefined();
+    expect(cgUserData.roles).toHaveLength(2);
+    expect(cgUserData.roles).toContainEqual({ role: 'STAFF', department: 'CG' });
+    expect(cgUserData.roles).toContainEqual({ role: 'CG_APPROVER', department: '*' });
+
+    // Find CG Head user
+    const cgHeadData = users.find(u => u.email === 'cg.head@example.com');
+    expect(cgHeadData).toBeDefined();
+    expect(cgHeadData.roles).toHaveLength(2);
+    expect(cgHeadData.roles).toContainEqual({ role: 'HD', department: 'CG' });
+    expect(cgHeadData.roles).toContainEqual({ role: 'CG_APPROVER', department: '*' });
   });
 
   it('Role Seeding: Verify role assignments are correct and no duplicates', async () => {

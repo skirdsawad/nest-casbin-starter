@@ -91,6 +91,22 @@ export class RequestsRepository {
         status: 'REJECTED' as const,
         stageCode: 'DEPT_HEAD',
         payload: { type: 'Training Request', description: 'Expensive external training course' }
+      },
+      // 7. CG department request (should end after HD approval)
+      {
+        user: 'cg.user@example.com',
+        dept: 'CG',
+        status: 'SUBMITTED' as const,
+        stageCode: 'DEPT_HEAD',
+        payload: { type: 'Strategy Review', description: 'Corporate strategy analysis' }
+      },
+      // 8. Request at CG_REVIEW stage
+      {
+        user: 'mkt.user@example.com',
+        dept: 'MKT',
+        status: 'IN_REVIEW' as const,
+        stageCode: 'CG_REVIEW',
+        payload: { type: 'Major Campaign', description: 'Multi-million dollar campaign requiring CG approval' }
       }
     ];
 
