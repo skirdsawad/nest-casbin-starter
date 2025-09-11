@@ -20,10 +20,12 @@ function Requests({ currentUserEmail, users }) {
   const [requests, setRequests] = useState([]);
   const [reviewableRequests, setReviewableRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [allDepartments, setAllDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [newRequestPayload, setNewRequestPayload] = useState('');
 
   const userMap = new Map(users.map((user) => [user.id, user.displayName]));
+  const departmentMap = new Map(allDepartments.map((dept) => [dept.id, dept]));
 
   const combinedRequests = [...requests];
   const requestIds = new Set(requests.map((r) => r.id));
@@ -76,6 +78,13 @@ function Requests({ currentUserEmail, users }) {
     if (currentUserEmail) {
       fetchReviewableRequests();
 
+      // Fetch all departments for the department map
+      fetch('http://localhost:3000/departments')
+        .then((response) => response.json())
+        .then((data) => setAllDepartments(data))
+        .catch((error) => console.error('Error fetching all departments:', error));
+
+      // Fetch creatable departments for the dropdown
       fetch('http://localhost:3000/departments/creatable', {
         headers: {
           'x-user-email': currentUserEmail,
@@ -248,6 +257,7 @@ function Requests({ currentUserEmail, users }) {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>Department</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Stage</TableCell>
               <TableCell>Created By</TableCell>
@@ -256,15 +266,19 @@ function Requests({ currentUserEmail, users }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {combinedRequests.map((req) => (
-              <TableRow key={req.id}>
-                <TableCell>{req.status}</TableCell>
-                <TableCell>{req.stageCode}</TableCell>
-                <TableCell>{userMap.get(req.createdBy) || req.createdBy}</TableCell>
-                <TableCell>{req.payload?.content}</TableCell>
-                <TableCell>{renderActions(req)}</TableCell>
-              </TableRow>
-            ))}
+            {combinedRequests.map((req) => {
+              const dept = departmentMap.get(req.departmentId);
+              return (
+                <TableRow key={req.id}>
+                  <TableCell>{dept ? `${dept.name} (${dept.code})` : req.departmentId}</TableCell>
+                  <TableCell>{req.status}</TableCell>
+                  <TableCell>{req.stageCode}</TableCell>
+                  <TableCell>{userMap.get(req.createdBy) || req.createdBy}</TableCell>
+                  <TableCell>{req.payload?.content}</TableCell>
+                  <TableCell>{renderActions(req)}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

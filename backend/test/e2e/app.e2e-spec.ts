@@ -1047,6 +1047,61 @@ describe('E2E - API Tests', () => {
     expect(cgHeadData.roles).toContainEqual({ role: 'CG_APPROVER', department: '*' });
   });
 
+  it('CG Early Visibility: CG can view AF_REVIEW requests but cannot approve them', async () => {
+    // Create an HR request
+    const { body: newRequest } = await request(app.getHttpServer())
+      .post('/requests')
+      .set(hrUser)
+      .send({ departmentId: getDeptId('HR'), payload: { type: 'CG Early View Test', amount: 5000 } })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/submit`)
+      .set(hrUser)
+      .expect(200);
+
+    // HR Head approves - moves to AF_REVIEW stage
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(hrHead)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    // CG user should see this request in reviewable but with no actions (view-only)
+    const { body: cgReviewable } = await request(app.getHttpServer())
+      .get('/requests/reviewable')
+      .set(cgUser)
+      .expect(200);
+
+    const foundRequest = cgReviewable.find(r => r.id === newRequest.id);
+    expect(foundRequest).toBeDefined();
+    expect(foundRequest.stageCode).toBe('AF_REVIEW');
+    expect(foundRequest.permittedActions).toEqual([]); // No actions - view only
+
+    // CG should NOT be able to approve at AF_REVIEW stage
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(403); // Forbidden
+
+    // AF user can still approve normally
+    const { body: afterAfApproval } = await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(afUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+
+    expect(afterAfApproval.stageCode).toBe('CG_REVIEW');
+
+    // Now CG can approve at CG_REVIEW stage
+    await request(app.getHttpServer())
+      .post(`/requests/${newRequest.id}/approve`)
+      .set(cgUser)
+      .send({ decision: 'approve' })
+      .expect(200);
+  });
+
   it('Role Seeding: Verify role assignments are correct and no duplicates', async () => {
     // Check all user roles for completeness and duplicates
     const { body: users } = await request(app.getHttpServer())

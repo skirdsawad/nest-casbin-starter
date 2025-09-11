@@ -64,6 +64,15 @@ export class RequestsService {
           ...req,
           permittedActions: ['approve', 'reject'],
         });
+      } else if (req.stageCode === 'AF_REVIEW') {
+        // Check if user can view AF_REVIEW stage (for CG early visibility)
+        const canViewAfReview = await this.casbin.enforce(userId, '*', 'requests', 'view:AF_REVIEW');
+        if (canViewAfReview) {
+          reviewableRequests.push({
+            ...req,
+            permittedActions: [], // View-only, no approve/reject actions
+          });
+        }
       }
     }
     return reviewableRequests;

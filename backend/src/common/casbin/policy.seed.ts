@@ -23,6 +23,9 @@ export async function seedPolicies(enf: Enforcer, users: User[]) {
 
   // CG_APPROVER role can approve CG_REVIEW stage for any department
   policies.push(['CG_APPROVER', '*', 'requests', 'approve:CG_REVIEW']);
+  
+  // CG_APPROVER can view requests at AF_REVIEW stage for early visibility (but cannot approve until CG_REVIEW)
+  policies.push(['CG_APPROVER', '*', 'requests', 'view:AF_REVIEW']);
 
   // Global policies for AMD
   policies.push(['AMD', '*', 'requests', 'approve:AMD_REVIEW']);
