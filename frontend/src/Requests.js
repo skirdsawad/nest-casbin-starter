@@ -41,7 +41,7 @@ function Requests({ currentUserEmail, users }) {
         setRequests([]);
         return;
       }
-      fetch(`http://localhost:3000/requests?departmentId=${departmentId}`, {
+      fetch(`http://localhost:9000/requests?departmentId=${departmentId}`, {
         headers: {
           'x-user-email': currentUserEmail,
         },
@@ -61,7 +61,7 @@ function Requests({ currentUserEmail, users }) {
       setReviewableRequests([]);
       return;
     }
-    fetch(`http://localhost:3000/requests/reviewable`, {
+    fetch(`http://localhost:9000/requests/reviewable`, {
       headers: {
         'x-user-email': currentUserEmail,
       },
@@ -79,13 +79,13 @@ function Requests({ currentUserEmail, users }) {
       fetchReviewableRequests();
 
       // Fetch all departments for the department map
-      fetch('http://localhost:3000/departments')
+      fetch('http://localhost:9000/departments')
         .then((response) => response.json())
         .then((data) => setAllDepartments(data))
         .catch((error) => console.error('Error fetching all departments:', error));
 
       // Fetch creatable departments for the dropdown
-      fetch('http://localhost:3000/departments/creatable', {
+      fetch('http://localhost:9000/departments/creatable', {
         headers: {
           'x-user-email': currentUserEmail,
         },
@@ -117,7 +117,7 @@ function Requests({ currentUserEmail, users }) {
   };
 
   const handleCreateRequest = () => {
-    fetch('http://localhost:3000/requests', {
+    fetch('http://localhost:9000/requests', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ function Requests({ currentUserEmail, users }) {
   };
 
   const handleSubmitRequest = (requestId) => {
-    fetch(`http://localhost:3000/requests/${requestId}/submit`, {
+    fetch(`http://localhost:9000/requests/${requestId}/submit`, {
       method: 'POST',
       headers: {
         'x-user-email': currentUserEmail,
@@ -152,7 +152,7 @@ function Requests({ currentUserEmail, users }) {
   };
 
   const handleApprovalAction = (requestId, decision) => {
-    fetch(`http://localhost:3000/requests/${requestId}/approve`, {
+    fetch(`http://localhost:9000/requests/${requestId}/approve`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -23,6 +23,10 @@ export class DepartmentsRepository {
     return this.departmentsRepository.findOneBy({ code });
   }
 
+  create(departmentData: { code: string; name: string }): Promise<Department> {
+    return this.departmentsRepository.save(departmentData);
+  }
+
   async seed(): Promise<Department[]> {
     const departmentsData = [
       { code: 'HR', name: 'Human Resources' },

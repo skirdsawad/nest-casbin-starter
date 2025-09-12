@@ -22,14 +22,14 @@ function CreateUser({ open, handleClose, refreshUsers }) {
 
   useEffect(() => {
     // Fetch departments when component mounts
-    fetch('http://localhost:3000/departments')
+    fetch('http://localhost:9000/departments')
       .then(response => response.json())
       .then(data => setDepartments(data))
       .catch(error => console.error('Error fetching departments:', error));
   }, []);
 
   const handleCreate = () => {
-    fetch('http://localhost:3000/users', {
+    fetch('http://localhost:9000/users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
